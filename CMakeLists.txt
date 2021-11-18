@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.1)
-project(cis565_boids)
+project(cuda_cardiac)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -62,18 +62,24 @@ find_package(GLM REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
 set(headers
-    src/cudaMat4.hpp
+    src/json/json.h
+    src/json/json-forwards.h
     src/glslUtility.hpp
     src/kernel.h
-    src/main.hpp
     src/utilityCore.hpp
+    src/visualizer.h
+    src/data_handler.h
+    src/data_struct.h
     )
 
 set(sources
+    src/jsoncpp.cpp
     src/glslUtility.cpp
     src/kernel.cu
     src/main.cpp
     src/utilityCore.cpp
+    src/visualizer.cpp
+    src/data_handler.cpp
     )
 
 list(SORT headers)
@@ -81,6 +87,7 @@ list(SORT sources)
 
 source_group(Headers FILES ${headers})
 source_group(Sources FILES ${sources})
+
 
 cuda_add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers})
 target_link_libraries(${CMAKE_PROJECT_NAME} ${LIBRARIES})
@@ -92,3 +99,4 @@ add_custom_command(
         ${CMAKE_SOURCE_DIR}/shaders
         ${CMAKE_BINARY_DIR}/shaders
     )
+

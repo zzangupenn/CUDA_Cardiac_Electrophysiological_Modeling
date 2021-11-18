@@ -1,0 +1,19 @@
+{   
+    "dt": 0.01,
+    "final_t": 600,
+    "tau_in": 1.0,
+    "tau_out": 1.0,
+    "tau_open": 1.0,
+    "tau_close": 1.0,
+    "v_gate": 1.0,
+    "c_for_D": 1.0,
+    "D": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+
+    "save_result": 0,
+    "save_result_filename": "sim_result.json",
+    
+    "visualization": 1,
+    "visualization_resolution": [1280, 720],
+    "save_visulization": 0,
+    "save_visulization_filename": "voxel_vis.avi"
+}
