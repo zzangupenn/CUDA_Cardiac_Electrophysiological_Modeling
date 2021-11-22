@@ -322,6 +322,7 @@ __global__ void simulation_kernel_optimized(int step, double* sim_v1, double* DT
 simulation_outputs Cardiac::runSimulation_optimized(simulation_inputs sim_inputs) {
     dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
     double* J_stim = new double[numObjects];
+    double* temp_ptr;
 
     simulation_outputs sim_output;
     int total_step = sim_inputs.final_t / sim_inputs.dt;
@@ -399,9 +400,13 @@ simulation_outputs Cardiac::runSimulation_optimized(simulation_inputs sim_inputs
         checkCUDAErrorWithLine("runSimulation failed!");
 
         cudaDeviceSynchronize();
+        //temp_ptr = sim_v1;
+        //sim_v1 = sim_v2;
+        //sim_v2 = temp_ptr;
         cudaMemcpy(sim_v1, sim_v2, numObjects * sizeof(double), cudaMemcpyDeviceToDevice);
         sim_output.action_potentials[ind] = new double[numObjects];
-        if (ind % 100 == 0) {
+        
+        if (ind % 10 == 0) {
             //printf("%d\n", ind);
             cudaMemcpy(sim_output.action_potentials[ind], sim_v1, numObjects * sizeof(double), cudaMemcpyDeviceToHost);
         }
@@ -483,6 +488,7 @@ __global__ void simulation_kernel_naive(double* sim_v1, double* DT,
 simulation_outputs Cardiac::runSimulation_naive(simulation_inputs sim_inputs) {
     dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
     double* J_stim = new double[numObjects];
+    
     
     simulation_outputs sim_output;
     int total_step = sim_inputs.final_t / sim_inputs.dt;

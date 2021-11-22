@@ -67,8 +67,8 @@ int main(int argc, char* argv[]) {
         sim_output = Cardiac::runSimulation_optimized(sim_inputs);
         Cardiac::endSimulation();
     }
-    auto duration = chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - start);
-    cout << "Computation took " << duration.count() << " seconds" << endl;
+    auto duration = chrono::duration_cast<chrono::milliseconds>(chrono::high_resolution_clock::now() - start);
+    cout << "Computation took " << duration.count() << " ms." << endl;
 
     if (sim_inputs.save_result == 1) {
         print_str("Saving results.");
