@@ -5,7 +5,7 @@
 #include <glm/glm.hpp>
 #include "utilityCore.hpp"
 #include "kernel.h"
-#include "data_struct.h"
+
 using namespace std;
 
 #define checkCUDAErrorWithLine(msg) checkCUDAError(msg, __LINE__)
@@ -24,25 +24,12 @@ void checkCUDAError(const char *msg, int line = -1) {
   }
 }
 
-
 /*****************
 * Configuration *
 *****************/
 
 /*! Block size used for CUDA kernel launch. */
-#define blockSize 128
-
-// LOOK-1.2 Parameters for the Cardiac algorithm.
-// These worked well in our reference implementation.
-#define rule1Distance 5.0f
-#define rule2Distance 3.0f
-#define rule3Distance 5.0f
-
-#define rule1Scale 0.01f
-#define rule2Scale 0.1f
-#define rule3Scale 0.1f
-
-#define maxSpeed 1.0f
+#define blockSize 256
 
 /*! Size of the starting area in simulation space. */
 #define scene_scale 25.0f
@@ -54,57 +41,592 @@ void checkCUDAError(const char *msg, int line = -1) {
 int numObjects;
 dim3 threadsPerBlock(blockSize);
 
-// LOOK-1.2 - These buffers are here to hold all your boid information.
-// These get allocated for you in Cardiac::initSimulation.
-// Consider why you would need two velocity buffers in a simulation where each
-// boid cares about its neighbors' potential.
-// These are called ping-pong buffers.
 glm::vec3* dev_pos;
-glm::vec3* dev_ap1;
-glm::vec3* dev_ap2;
+glm::vec3* dev_ap_gl;
+double* sim_v1;
+double* sim_v2;
+double* sim_h;
 
-// LOOK-2.1 - these are NOT allocated for you. You'll have to set up the thrust
-// pointers on your own too.
+double* part1;
+double* part2;
+double* part3;
+double* part4;
+double* part5;
+double* part6;
+double* part7;
+double* part8;
+double* part9;
+double* part10;
+double* part11;
+double* part12;
+double* part13;
+double* part14;
+double* part15;
+double* tau_open;
+double* tau_close;
+double* tau_in;
+double* tau_out;
+double* v_gate;
+double* diffusion_term;
+int* px;
+int* mx;
+int* py;
+int* my;
+int* pz;
+int* mz;
+int* pxpy;
+int* mxpy;
+int* pxmy;
+int* mxmy;
+int* pypz;
+int* mypz;
+int* pymz;
+int* mymz;
+int* pxpz;
+int* mxpz;
+int* pxmz;
+int* mxmz;
+double* DT;
 
-// For efficient sorting and the uniform grid. These should always be parallel.
-int *dev_particleArrayIndices; // What index in dev_pos and dev_apX represents this particle?
-int *dev_particleGridIndices; // What grid cell is this particle in?
-// needed for use with thrust
-thrust::device_ptr<int> dev_thrust_particleArrayIndices;
-thrust::device_ptr<int> dev_thrust_particleGridIndices;
+int* J_stim_ind_min_max;
+int* J_stim_ind_min_max_h = new int[2];
+double* J_stim_voxel;
+int* J_stim_step;
+int* J_stim_n_voxel;
+int* J_stim_voxel_ind;
+double* J_stim_value;
+int* J_stim_count;
 
-int *dev_gridCellStartIndices; // What part of dev_particleArrayIndices belongs
-int *dev_gridCellEndIndices;   // to this cell?
 
-// TODO-2.3 - consider what additional buffers you might need to reshuffle
-// the position and velocity data to be coherent within cells.
-
-// LOOK-2.1 - Grid parameters based on simulation parameters.
-// These are automatically computed for you in Cardiac::initSimulation
-int gridCellCount;
-int gridSideCount;
-float gridCellWidth;
-float gridInverseCellWidth;
-glm::vec3 gridMinimum;
 
 /******************
-* initSimulation *
+* Simulation *
 ******************/
 
-__host__ __device__ unsigned int hash(unsigned int a) {
-  a = (a + 0x7ed55d16) + (a << 12);
-  a = (a ^ 0xc761c23c) ^ (a >> 19);
-  a = (a + 0x165667b1) + (a << 5);
-  a = (a + 0xd3a2646c) ^ (a << 9);
-  a = (a + 0xfd7046c5) + (a << 3);
-  a = (a ^ 0xb55a4f09) ^ (a >> 16);
-  return a;
+void Cardiac::initSimulation(simulation_inputs sim_inputs, simulation_data_parts data_parts) {
+    int N = sim_inputs.n_voxel;
+    numObjects = sim_inputs.n_voxel;
+    dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
+
+    cudaMalloc((void**)&DT, sizeof(double));
+    cudaMemcpy(DT, &(sim_inputs.dt), sizeof(double), cudaMemcpyHostToDevice);
+    checkCUDAErrorWithLine("cudaMalloc failed!");
+    cudaMalloc((void**)&sim_v1, N * sizeof(double));
+    cudaMemset((void*)sim_v1, 0, N * sizeof(double));
+    cudaMalloc((void**)&sim_v2, N * sizeof(double));
+    cudaMemset((void*)sim_v2, 0, N * sizeof(double));
+    cudaMalloc((void**)&sim_h, N * sizeof(double));
+    double* sim_h_host = new double[numObjects];
+    for (int ind = 0; ind < N; ind++) {
+        sim_h_host[ind] = 1.0;
+    }
+    cudaMemcpy(sim_h, sim_h_host, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_voxel, N * sizeof(double));
+    cudaMemset((void*)J_stim_voxel, 0, N * sizeof(double));
+
+    cudaMalloc((void**)&part1, N * sizeof(double));
+    cudaMemcpy(part1, data_parts.part1, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part2, N * sizeof(double));
+    cudaMemcpy(part2, data_parts.part2, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part3, N * sizeof(double));
+    cudaMemcpy(part3, data_parts.part3, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part4, N * sizeof(double));
+    cudaMemcpy(part4, data_parts.part4, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part5, N * sizeof(double));
+    cudaMemcpy(part5, data_parts.part5, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part6, N * sizeof(double));
+    cudaMemcpy(part6, data_parts.part6, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part7, N * sizeof(double));
+    cudaMemcpy(part7, data_parts.part7, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part8, N * sizeof(double));
+    cudaMemcpy(part8, data_parts.part8, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part9, N * sizeof(double));
+    cudaMemcpy(part9, data_parts.part9, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part10, N * sizeof(double));
+    cudaMemcpy(part10, data_parts.part10, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part11, N * sizeof(double));
+    cudaMemcpy(part11, data_parts.part11, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part12, N * sizeof(double));
+    cudaMemcpy(part12, data_parts.part12, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part13, N * sizeof(double));
+    cudaMemcpy(part13, data_parts.part13, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part14, N * sizeof(double));
+    cudaMemcpy(part14, data_parts.part14, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&part15, N * sizeof(double));
+    cudaMemcpy(part15, data_parts.part15, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&px, N * sizeof(int));
+    cudaMemcpy(px, sim_inputs.voxel_neighborhood[0], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&mx, N * sizeof(int));
+    cudaMemcpy(mx, sim_inputs.voxel_neighborhood[1], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&py, N * sizeof(int));
+    cudaMemcpy(py, sim_inputs.voxel_neighborhood[2], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&my, N * sizeof(int));
+    cudaMemcpy(my, sim_inputs.voxel_neighborhood[3], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&pz, N * sizeof(int));
+    cudaMemcpy(pz, sim_inputs.voxel_neighborhood[4], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&mz, N * sizeof(int));
+    cudaMemcpy(mz, sim_inputs.voxel_neighborhood[5], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&pxpy, N * sizeof(int));
+    cudaMemcpy(pxpy, sim_inputs.voxel_neighborhood[6], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&mxpy, N * sizeof(int));
+    cudaMemcpy(mxpy, sim_inputs.voxel_neighborhood[7], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&pxmy, N * sizeof(int));
+    cudaMemcpy(pxmy, sim_inputs.voxel_neighborhood[8], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&mxmy, N * sizeof(int));
+    cudaMemcpy(mxmy, sim_inputs.voxel_neighborhood[9], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&pypz, N * sizeof(int));
+    cudaMemcpy(pypz, sim_inputs.voxel_neighborhood[10], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&mypz, N * sizeof(int));
+    cudaMemcpy(mypz, sim_inputs.voxel_neighborhood[11], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&pymz, N * sizeof(int));
+    cudaMemcpy(pymz, sim_inputs.voxel_neighborhood[12], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&mymz, N * sizeof(int));
+    cudaMemcpy(mymz, sim_inputs.voxel_neighborhood[13], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&pxpz, N * sizeof(int));
+    cudaMemcpy(pxpz, sim_inputs.voxel_neighborhood[14], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&mxpz, N * sizeof(int));
+    cudaMemcpy(mxpz, sim_inputs.voxel_neighborhood[15], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&pxmz, N * sizeof(int));
+    cudaMemcpy(pxmz, sim_inputs.voxel_neighborhood[16], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&mxmz, N * sizeof(int));
+    cudaMemcpy(mxmz, sim_inputs.voxel_neighborhood[17], N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&tau_open, N * sizeof(double));
+    cudaMemcpy(tau_open, sim_inputs.tau_open, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&tau_close, N * sizeof(double));
+    cudaMemcpy(tau_close, sim_inputs.tau_close, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&tau_in, N * sizeof(double));
+    cudaMemcpy(tau_in, sim_inputs.tau_in, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&tau_out, N * sizeof(double));
+    cudaMemcpy(tau_out, sim_inputs.tau_out, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&v_gate, N * sizeof(double));
+    cudaMemcpy(v_gate, sim_inputs.v_gate, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&diffusion_term, N * sizeof(double));
+    cudaMemset((void*)diffusion_term, 0, N * sizeof(double));
+
+    cudaMalloc((void**)&J_stim_n_voxel, sizeof(int));
+    cudaMemcpy(J_stim_n_voxel, &(sim_inputs.J_stim.n_voxel), sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_voxel_ind, sim_inputs.J_stim.n_voxel * sizeof(int));
+    cudaMemcpy(J_stim_voxel_ind, sim_inputs.J_stim.voxel_ind, sim_inputs.J_stim.n_voxel * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_count, sim_inputs.J_stim.n_voxel * sizeof(int));
+    cudaMemcpy(J_stim_count, sim_inputs.J_stim.count, sim_inputs.J_stim.n_voxel * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_step, sim_inputs.J_stim.count[sim_inputs.J_stim.n_voxel-1] * sizeof(int));
+    cudaMemcpy(J_stim_step, sim_inputs.J_stim.step, sim_inputs.J_stim.count[sim_inputs.J_stim.n_voxel - 1] * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_value, N * sizeof(double));
+    cudaMemcpy(J_stim_value, sim_inputs.J_stim.value, sim_inputs.J_stim.count[sim_inputs.J_stim.n_voxel - 1] * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_ind_min_max, 2 * sizeof(int));
+
+    cudaMalloc((void**)&dev_pos, N * sizeof(glm::vec3));
+    checkCUDAErrorWithLine("cudaMalloc dev_pos failed!");
+    cudaMemcpy(dev_pos, sim_inputs.voxel, N * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+
+    cudaMalloc((void**)&dev_ap_gl, N * sizeof(glm::vec3));
+    checkCUDAErrorWithLine("cudaMalloc dev_ap_gl failed!");
+    
+    J_stim_ind_min_max_h[0] = INT_MAX;
+    J_stim_ind_min_max_h[1] = 0;
+    for (int ind = 0; ind < sim_inputs.J_stim.count[sim_inputs.J_stim.n_voxel - 1]; ind++) {
+        if (J_stim_ind_min_max_h[0] > sim_inputs.J_stim.step[ind]) J_stim_ind_min_max_h[0] = sim_inputs.J_stim.step[ind];
+        if (J_stim_ind_min_max_h[1] < sim_inputs.J_stim.step[ind]) J_stim_ind_min_max_h[1] = sim_inputs.J_stim.step[ind];
+    }
+    cudaMemcpy(J_stim_ind_min_max, J_stim_ind_min_max_h, 2 * sizeof(int), cudaMemcpyHostToDevice);
+
+    cudaDeviceSynchronize();
 }
 
-/**
-* Initialize memory, update some globals
-*/
-void Cardiac::initSimulation(int N, glm::vec3* voxel) {
+__global__ void simulation_kernel_optimized(int step, double* sim_v1, double* DT,
+    double* sim_v2,
+    double* sim_h,
+    double* J_stim_voxel,
+    double* part1,
+    double* part2,
+    double* part3,
+    double* part4,
+    double* part5,
+    double* part6,
+    double* part7,
+    double* part8,
+    double* part9,
+    double* part10,
+    double* part11,
+    double* part12,
+    double* part13,
+    double* part14,
+    double* part15,
+    double* tau_open,
+    double* tau_close,
+    double* tau_in,
+    double* tau_out,
+    double* v_gate,
+    double* diffusion_term,
+    int* px,
+    int* mx,
+    int* py,
+    int* my,
+    int* pz,
+    int* mz,
+    int* pxpy,
+    int* mxpy,
+    int* pxmy,
+    int* mxmy,
+    int* pypz,
+    int* mypz,
+    int* pymz,
+    int* mymz,
+    int* pxpz,
+    int* mxpz,
+    int* pxmz,
+    int* mxmz,
+    int* J_stim_step,
+    int* J_stim_n_voxel,
+    int* J_stim_voxel_ind,
+    double* J_stim_value,
+    int* J_stim_count,
+    int* J_stim_ind_min_max) {
+    int index = threadIdx.x + (blockIdx.x * blockDim.x);
+    double sim_v1_this;
+    diffusion_term[index] = 1.0 / (4.0 * 4.0) *
+        ((sim_v1[px[index]] - sim_v1[index]) * part1[index] + (sim_v1[mx[index]] - sim_v1[index]) * part2[index] +
+            (sim_v1[py[index]] - sim_v1[index]) * part3[index] + (sim_v1[my[index]] - sim_v1[index]) * part4[index] +
+            (sim_v1[pz[index]] - sim_v1[index]) * part5[index] + (sim_v1[mz[index]] - sim_v1[index]) * part6[index] +
+            (sim_v1[px[index]] - sim_v1[mx[index]]) * part7[index] +
+            (sim_v1[py[index]] - sim_v1[my[index]]) * part8[index] +
+            (sim_v1[pz[index]] - sim_v1[mz[index]]) * part9[index] +
+            (sim_v1[pxpy[index]] - sim_v1[pxmy[index]]) * part10[index] + (sim_v1[mxmy[index]] - sim_v1[mxpy[index]]) * part11[index] +
+            (sim_v1[pxpz[index]] - sim_v1[pxmz[index]]) * part12[index] + (sim_v1[mxmz[index]] - sim_v1[mxpz[index]]) * part13[index] +
+            (sim_v1[pypz[index]] - sim_v1[pymz[index]]) * part14[index] + (sim_v1[mymz[index]] - sim_v1[mypz[index]]) * part15[index]);
+    double J_stim = 0;
+
+    if (step >= J_stim_ind_min_max[0] && step <= J_stim_ind_min_max[1]) {
+        [&] {
+            for (int count_ind = 0; count_ind < J_stim_n_voxel[0]; count_ind++) {
+                if (index == J_stim_voxel_ind[count_ind]) {
+                    for (int step_ind = J_stim_count[count_ind]; step_ind < J_stim_count[count_ind + 1]; step_ind++) {
+                        if (J_stim_step[step_ind] - 1 == step) {
+                            J_stim = J_stim_value[step_ind];
+                            return;
+                        }
+                    }
+                }
+            }
+        }();
+    }
+    sim_v2[index] = ((sim_h[index] * sim_v1[index] * sim_v1[index] * (1 - sim_v1[index]) / tau_in[index]) + (-sim_v1[index] / tau_out[index]) + J_stim + diffusion_term[index]) * DT[0] + sim_v1[index];
+    if (sim_v1[index] < v_gate[index]) {
+        sim_h[index] = ((1 - sim_h[index]) / tau_open[index]) * DT[0] + sim_h[index];
+    }
+    else {
+        sim_h[index] = (-sim_h[index] / tau_close[index]) * DT[0] + sim_h[index];
+    }
+}
+
+simulation_outputs Cardiac::runSimulation_optimized(simulation_inputs sim_inputs) {
+    dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
+    double* J_stim = new double[numObjects];
+
+    simulation_outputs sim_output;
+    int total_step = sim_inputs.final_t / sim_inputs.dt;
+    sim_output.n_step = total_step;
+    sim_output.n_voxel = sim_inputs.n_voxel;
+    sim_output.data_min = sim_inputs.v_gate[0];
+    sim_output.data_max = 1.0;
+    sim_output.action_potentials = new double* [total_step];
+    for (int ind = 0; ind < total_step; ind++) {
+        if (ind % 1000 == 0) {
+            printf("%d\n", ind);
+        }
+        //memset(J_stim, 0, numObjects * sizeof(double));
+        //if (ind >= J_stim_ind_min_max_h[0] && ind <= J_stim_ind_min_max_h[1]) {
+        //    for (int count_ind = 0; count_ind < sim_inputs.J_stim.n_voxel; count_ind++) {
+        //        for (int step_ind = sim_inputs.J_stim.count[count_ind]; step_ind < sim_inputs.J_stim.count[count_ind + 1]; step_ind++) {
+        //            if (sim_inputs.J_stim.step[step_ind] - 1 == ind) {
+        //                J_stim[sim_inputs.J_stim.voxel_ind[count_ind]] = sim_inputs.J_stim.value[step_ind];
+        //            }
+        //        }
+        //    }
+        //}
+        //cudaMemcpy(J_stim_voxel, J_stim, numObjects * sizeof(double), cudaMemcpyHostToDevice);
+
+        simulation_kernel_optimized << < fullBlocksPerGrid, blockSize >> > (ind, sim_v1,
+            DT,
+            sim_v2,
+            sim_h,
+            J_stim_voxel,
+            part1,
+            part2,
+            part3,
+            part4,
+            part5,
+            part6,
+            part7,
+            part8,
+            part9,
+            part10,
+            part11,
+            part12,
+            part13,
+            part14,
+            part15,
+            tau_open,
+            tau_close,
+            tau_in,
+            tau_out,
+            v_gate,
+            diffusion_term,
+            px,
+            mx,
+            py,
+            my,
+            pz,
+            mz,
+            pxpy,
+            mxpy,
+            pxmy,
+            mxmy,
+            pypz,
+            mypz,
+            pymz,
+            mymz,
+            pxpz,
+            mxpz,
+            pxmz,
+            mxmz,
+            J_stim_step,
+            J_stim_n_voxel,
+            J_stim_voxel_ind,
+            J_stim_value,
+            J_stim_count,
+            J_stim_ind_min_max);
+        checkCUDAErrorWithLine("runSimulation failed!");
+
+        cudaDeviceSynchronize();
+        cudaMemcpy(sim_v1, sim_v2, numObjects * sizeof(double), cudaMemcpyDeviceToDevice);
+        sim_output.action_potentials[ind] = new double[numObjects];
+        if (ind % 100 == 0) {
+            //printf("%d\n", ind);
+            cudaMemcpy(sim_output.action_potentials[ind], sim_v1, numObjects * sizeof(double), cudaMemcpyDeviceToHost);
+        }
+        
+    }
+    return sim_output;
+}
+
+__global__ void simulation_kernel_naive(double* sim_v1, double* DT,
+    double* sim_v2,
+    double* sim_h,
+    double* J_stim_voxel,
+    double* part1,
+    double* part2,
+    double* part3,
+    double* part4,
+    double* part5,
+    double* part6,
+    double* part7,
+    double* part8,
+    double* part9,
+    double* part10,
+    double* part11,
+    double* part12,
+    double* part13,
+    double* part14,
+    double* part15,
+    double* tau_open,
+    double* tau_close,
+    double* tau_in,
+    double* tau_out,
+    double* v_gate,
+    double* diffusion_term,
+    int* px,
+    int* mx,
+    int* py,
+    int* my,
+    int* pz,
+    int* mz,
+    int* pxpy,
+    int* mxpy,
+    int* pxmy,
+    int* mxmy,
+    int* pypz,
+    int* mypz,
+    int* pymz,
+    int* mymz,
+    int* pxpz,
+    int* mxpz,
+    int* pxmz,
+    int* mxmz,
+    int* J_stim_step,
+    int* J_stim_n_voxel,
+    int* J_stim_voxel_ind,
+    double* J_stim_value,
+    int* J_stim_count,
+    int* J_stim_ind_min_max) {
+    int index = threadIdx.x + (blockIdx.x * blockDim.x);
+    diffusion_term[index] = 1.0 / (4.0 * 4.0) *
+        ((sim_v1[px[index]] - sim_v1[index]) * part1[index] + (sim_v1[mx[index]] - sim_v1[index])* part2[index] +
+        (sim_v1[py[index]] - sim_v1[index])* part3[index] + (sim_v1[my[index]] - sim_v1[index])* part4[index] +
+        (sim_v1[pz[index]] - sim_v1[index])* part5[index] + (sim_v1[mz[index]] - sim_v1[index])* part6[index] +
+        (sim_v1[px[index]] - sim_v1[mx[index]])* part7[index] +
+        (sim_v1[py[index]] - sim_v1[my[index]])* part8[index] +
+        (sim_v1[pz[index]] - sim_v1[mz[index]])* part9[index] +
+        (sim_v1[pxpy[index]] - sim_v1[pxmy[index]])* part10[index] + (sim_v1[mxmy[index]] - sim_v1[mxpy[index]])* part11[index] +
+        (sim_v1[pxpz[index]] - sim_v1[pxmz[index]])* part12[index] + (sim_v1[mxmz[index]] - sim_v1[mxpz[index]])* part13[index] +
+        (sim_v1[pypz[index]] - sim_v1[pymz[index]])* part14[index] + (sim_v1[mymz[index]] - sim_v1[mypz[index]])* part15[index]);
+
+    sim_v2[index] = ((sim_h[index] * sim_v1[index] * sim_v1[index] * (1 - sim_v1[index]) / tau_in[index]) + (-sim_v1[index] / tau_out[index]) + J_stim_voxel[index] + diffusion_term[index]) * DT[0] + sim_v1[index];
+    if (sim_v1[index] < v_gate[index]) {
+        sim_h[index] = ((1 - sim_h[index]) / tau_open[index])* DT[0] + sim_h[index];
+    }
+    else {
+        sim_h[index] = (-sim_h[index] / tau_close[index]) * DT[0] + sim_h[index];
+    }
+}
+
+simulation_outputs Cardiac::runSimulation_naive(simulation_inputs sim_inputs) {
+    dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
+    double* J_stim = new double[numObjects];
+    
+    simulation_outputs sim_output;
+    int total_step = sim_inputs.final_t / sim_inputs.dt;
+    sim_output.n_step = total_step;
+    sim_output.n_voxel = sim_inputs.n_voxel;
+    sim_output.data_min = sim_inputs.v_gate[0];
+    sim_output.data_max = 1.0;
+    sim_output.action_potentials = new double* [total_step];
+    for (int ind = 0; ind < total_step; ind++) {
+        if (ind % 1000 == 0) {
+            printf("%d\n", ind);
+        }
+        memset(J_stim, 0, numObjects * sizeof(double));
+        if (ind >= J_stim_ind_min_max_h[0] && ind <= J_stim_ind_min_max_h[1]) {
+            for (int count_ind = 0; count_ind < sim_inputs.J_stim.n_voxel; count_ind++) {
+                for (int step_ind = sim_inputs.J_stim.count[count_ind]; step_ind < sim_inputs.J_stim.count[count_ind + 1]; step_ind++) {
+                    if (sim_inputs.J_stim.step[step_ind] - 1 == ind) {
+                        J_stim[sim_inputs.J_stim.voxel_ind[count_ind]] = sim_inputs.J_stim.value[step_ind];
+                    }
+                }
+            }
+        }
+        cudaMemcpy(J_stim_voxel, J_stim, numObjects * sizeof(double), cudaMemcpyHostToDevice);
+
+        simulation_kernel_naive << < fullBlocksPerGrid, blockSize >> > (sim_v1,
+            DT,
+            sim_v2,
+            sim_h,
+            J_stim_voxel,
+            part1,
+            part2,
+            part3,
+            part4,
+            part5,
+            part6,
+            part7,
+            part8,
+            part9,
+            part10,
+            part11,
+            part12,
+            part13,
+            part14,
+            part15,
+            tau_open,
+            tau_close,
+            tau_in,
+            tau_out,
+            v_gate,
+            diffusion_term,
+            px,
+            mx,
+            py,
+            my,
+            pz,
+            mz,
+            pxpy,
+            mxpy,
+            pxmy,
+            mxmy,
+            pypz,
+            mypz,
+            pymz,
+            mymz,
+            pxpz,
+            mxpz,
+            pxmz,
+            mxmz,
+            J_stim_step,
+            J_stim_n_voxel,
+            J_stim_voxel_ind,
+            J_stim_value,
+            J_stim_count,
+            J_stim_ind_min_max);
+        checkCUDAErrorWithLine("runSimulation failed!");
+
+        cudaDeviceSynchronize();
+        cudaMemcpy(sim_v1, sim_v2, numObjects * sizeof(double), cudaMemcpyDeviceToDevice);
+        sim_output.action_potentials[ind] = new double[numObjects];
+        cudaMemcpy(sim_output.action_potentials[ind], sim_v1, numObjects * sizeof(double), cudaMemcpyDeviceToHost);
+    }
+    return sim_output;
+}
+
+void Cardiac::endSimulation() {
+    cudaFree(sim_v1);
+    cudaFree(DT);
+    cudaFree(sim_v2);
+    cudaFree(sim_h);
+    cudaFree(J_stim_voxel);
+    cudaFree(part1);
+    cudaFree(part2);
+    cudaFree(part3);
+    cudaFree(part4);
+    cudaFree(part5);
+    cudaFree(part6);
+    cudaFree(part7);
+    cudaFree(part8);
+    cudaFree(part9);
+    cudaFree(part10);
+    cudaFree(part11);
+    cudaFree(part12);
+    cudaFree(part13);
+    cudaFree(part14);
+    cudaFree(part15);
+    cudaFree(tau_open);
+    cudaFree(tau_close);
+    cudaFree(tau_in);
+    cudaFree(tau_out);
+    cudaFree(v_gate);
+    cudaFree(diffusion_term);
+    cudaFree(px);
+    cudaFree(mx);
+    cudaFree(py);
+    cudaFree(my);
+    cudaFree(pz);
+    cudaFree(mz);
+    cudaFree(pxpy);
+    cudaFree(mxpy);
+    cudaFree(pxmy);
+    cudaFree(mxmy);
+    cudaFree(pypz);
+    cudaFree(mypz);
+    cudaFree(pymz);
+    cudaFree(mymz);
+    cudaFree(pxpz);
+    cudaFree(mxpz);
+    cudaFree(pxmz);
+    cudaFree(mxmz);
+    cudaFree(J_stim_step);
+    cudaFree(J_stim_n_voxel);
+    cudaFree(J_stim_voxel_ind);
+    cudaFree(J_stim_value);
+    cudaFree(J_stim_count);
+    cudaFree(J_stim_ind_min_max);
+    cudaDeviceSynchronize();
+}
+
+
+/******************
+* Visulization *
+******************/
+
+void Cardiac::initVisulization(int N, glm::vec3* voxel) {
   numObjects = N;
   dim3 fullBlocksPerGrid((N + blockSize - 1) / blockSize);
 
@@ -112,34 +634,12 @@ void Cardiac::initSimulation(int N, glm::vec3* voxel) {
   checkCUDAErrorWithLine("cudaMalloc dev_pos failed!");
   cudaMemcpy(dev_pos, voxel, N * sizeof(glm::vec3), cudaMemcpyHostToDevice);
 
-  cudaMalloc((void**)&dev_ap1, N * sizeof(glm::vec3));
-  checkCUDAErrorWithLine("cudaMalloc dev_ap1 failed!");
-
-  cudaMalloc((void**)&dev_ap2, N * sizeof(glm::vec3));
-  checkCUDAErrorWithLine("cudaMalloc dev_ap2 failed!");
-
-  gridCellWidth = 2.0f * std::max(std::max(rule1Distance, rule2Distance), rule3Distance);
-  int halfSideCount = (int)(scene_scale / gridCellWidth) + 1;
-  gridSideCount = 2 * halfSideCount;
-
-  gridCellCount = gridSideCount * gridSideCount * gridSideCount;
-  gridInverseCellWidth = 1.0f / gridCellWidth;
-  float halfGridWidth = gridCellWidth * halfSideCount;
-  gridMinimum.x -= halfGridWidth;
-  gridMinimum.y -= halfGridWidth;
-  gridMinimum.z -= halfGridWidth;
+  cudaMalloc((void**)&dev_ap_gl, N * sizeof(glm::vec3));
+  checkCUDAErrorWithLine("cudaMalloc dev_ap_gl failed!");
 
   cudaDeviceSynchronize();
 }
 
-
-/******************
-* copyCardiacToVBO *
-******************/
-
-/**
-* Copy the boid positions into the VBO so that they can be drawn by OpenGL.
-*/
 __global__ void kernCopyPositionsToVBO(int N, glm::vec3 *pos, float *vbo, float s_scale) {
   int index = threadIdx.x + (blockIdx.x * blockDim.x);
   float c_scale = -1.0f / s_scale;
@@ -151,7 +651,7 @@ __global__ void kernCopyPositionsToVBO(int N, glm::vec3 *pos, float *vbo, float 
   }
 }
 
-__global__ void kernCopyVelocitiesToVBO(int N, glm::vec3 *vel, float *vbo, float s_scale) {
+__global__ void kernCopyPotentialToVBO(int N, glm::vec3 *vel, float *vbo, float s_scale) {
   int index = threadIdx.x + (blockIdx.x * blockDim.x);
 
   if (index < N) {
@@ -169,42 +669,19 @@ void Cardiac::copyCardiacToVBO(float *vbodptr_positions, float *vbodptr_potentia
   dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
 
   kernCopyPositionsToVBO << <fullBlocksPerGrid, blockSize >> >(numObjects, dev_pos, vbodptr_positions, scene_scale);
-  kernCopyVelocitiesToVBO << <fullBlocksPerGrid, blockSize >> >(numObjects, dev_ap1, vbodptr_potential, scene_scale);
-
   checkCUDAErrorWithLine("copyCardiacToVBO failed!");
+  kernCopyPotentialToVBO << <fullBlocksPerGrid, blockSize >> >(numObjects, dev_ap_gl, vbodptr_potential, scene_scale);
 
   cudaDeviceSynchronize();
 }
 
-
-/******************
-* stepSimulation *
-******************/
-
-
-
-// LOOK-2.1 Consider this method of computing a 1D index from a 3D grid index.
-// LOOK-2.3 Looking at this method, what would be the most memory efficient
-//          order for iterating over neighboring grid cells?
-//          for(x)
-//            for(y)
-//             for(z)? Or some other order?
-__device__ int gridIndex3Dto1D(int x, int y, int z, int gridResolution) {
-  return x + y * gridResolution + z * gridResolution * gridResolution;
-}
-
-
 void Cardiac::copySimOutput(int N, glm::vec3* output_vec3) {
-    cudaMemcpy(dev_ap1, output_vec3, N * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_ap_gl, output_vec3, N * sizeof(glm::vec3), cudaMemcpyHostToDevice);
 }
 
-
-void Cardiac::endSimulation() {
-  cudaFree(dev_ap1);
-  cudaFree(dev_ap2);
-  cudaFree(dev_pos);
-
-  // TODO-2.1 TODO-2.3 - Free any additional buffers here.
+void Cardiac::endVisulization() {
+    cudaFree(dev_ap_gl);
+    cudaFree(dev_pos);
 }
 
 void Cardiac::unitTest() {

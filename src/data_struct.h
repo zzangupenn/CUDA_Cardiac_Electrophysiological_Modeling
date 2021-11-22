@@ -16,14 +16,24 @@ struct J_stim_struct {
 struct simulation_inputs {
     double dt;
     int final_t;
-    double tau_in;
-    double tau_out;
-    double tau_open;
-    double tau_close;
-    double v_gate;
-    double c_for_D;
+    int save_result;
+    int use_gpu;
+    string save_result_filename;
+    int visualization;
+    int* visualization_resolution;
+    int save_visulization;
+    string save_visulization_filename;
+    double save_data_min_clip;
+
+    double delta;
+    double* tau_in;
+    double* tau_out;
+    double* tau_open;
+    double* tau_close;
+    double* v_gate;
+    double* c_for_D;
     int n_voxel;
-    double* D = new double[9];
+    double** D;
     glm::vec3* voxel;
     int** voxel_neighborhood;
     int* boundary_flag;
@@ -34,13 +44,25 @@ struct simulation_outputs {
     int n_voxel;
     int n_step;
     double** action_potentials;
+    double data_min;
+    double data_max;
 };
 
-struct simulation_settings {
-    bool save_result;
-    string save_result_filename;
-    bool visualization;
-    int visualization_resolution[2];
-    bool save_visulization;
-    string save_visulization_filename;
+struct simulation_data_parts {
+    double* part1;
+    double* part2;
+    double* part3;
+    double* part4;
+    double* part5;
+    double* part6;
+    double* part7;
+    double* part8;
+    double* part9;
+    double* part10;
+    double* part11;
+    double* part12;
+    double* part13;
+    double* part14;
+    double* part15;
+    //double** parts = new double* [15];
 };

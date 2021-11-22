@@ -17,23 +17,17 @@ std::string deviceName;
 //====================================
 // GL Stuff
 //====================================
-
+cudaDeviceProp deviceProp;
 GLuint positionLocation = 0;   // Match results from glslUtility::createProgram.
 GLuint potentialLocation = 1; // Also see attribtueLocations below.
 const char* attributeLocations[] = { "Position", "Potential" };
-
 GLuint cardiacVAO = 0;
 GLuint cardiacVBO_positions = 0;
 GLuint cardiacVBO_potential = 0;
 GLuint cardiacIBO = 0;
 GLuint displayImage;
 GLuint program[2];
-
-const int N_FOR_VIS = 13288;
-const float DT = 0.2f;
-
 const unsigned int PROG_CARDIAC = 0;
-
 const float fovy = (float)(PI / 4);
 const float zNear = 0.10f;
 const float zFar = 100.0f;
@@ -54,13 +48,41 @@ glm::vec3 cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::mat4 projection;
 GLFWwindow* window;
 
-//void print_str(std::string str) {
-//    printf("%s\n", str.c_str());
-//}
-
-//void print_float(float x) {
-//    printf("%f\n", x);
-//}
+glm::vec3 dataToRGB(double data, double data_min, double data_max) {
+    // modified from online
+    if (data < data_min) {
+        return glm::vec3(0.f, 0.f, 0.f);
+    }
+    if (data > data_max) {
+        data = data_max;
+    }
+    float H = (data - data_min) / (data_max - data_min) * 240.0;
+    float s = 1.0;
+    float v = 1.0;
+    float C = s * v;
+    float X = C * (1 - abs(fmod(H / 60.0, 2) - 1));
+    float m = v - C;
+    float r, g, b;
+    if (H >= 0 && H < 60) {
+        r = C, g = X, b = 0;
+    }
+    else if (H >= 60 && H < 120) {
+        r = X, g = C, b = 0;
+    }
+    else if (H >= 120 && H < 180) {
+        r = 0, g = C, b = X;
+    }
+    else if (H >= 180 && H < 240) {
+        r = 0, g = X, b = C;
+    }
+    else if (H >= 240 && H < 300) {
+        r = X, g = 0, b = C;
+    }
+    else {
+        r = C, g = 0, b = X;
+    }
+    return glm::vec3((r + m), (g + m), (b + m));
+}
 
 
 //====================================
@@ -80,9 +102,6 @@ void runCUDA(int N, glm::vec3* output_vec3) {
 
     // execute the kernel
     Cardiac::copySimOutput(N, output_vec3);
-    //for (int ind = 0; ind < N; ind++) {
-    //    printf("%f\n", float(output_vec3[ind].x));
-    //}
 
     //#if VISUALIZE
     Cardiac::copyCardiacToVBO(dptrVertPositions, dptrVertPotential);
@@ -92,7 +111,7 @@ void runCUDA(int N, glm::vec3* output_vec3) {
     cudaGLUnmapBufferObject(cardiacVBO_potential);
 }
 
-void mainLoop(simulation_outputs sim_output) {
+void visualizationLoop(simulation_outputs sim_output) {
     double fps = 0;
     double timebase = 0;
     int frame = 0;
@@ -105,7 +124,6 @@ void mainLoop(simulation_outputs sim_output) {
         glfwPollEvents();
 
         frame++;
-        sim_frame += 10;
         double time = glfwGetTime();
 
         if (time - timebase > 1.0) {
@@ -113,10 +131,8 @@ void mainLoop(simulation_outputs sim_output) {
             timebase = time;
             frame = 0;
         }
-        double scale = 1.0;
         for (int ind = 0; ind < sim_output.n_voxel; ind++) {
-            output_vec3[ind] = glm::vec3(sim_output.action_potentials[sim_frame][ind] * scale, 0.0, 0.0);
-            //printf("%f\n", float(sim_output.action_potentials[10000][ind] * scale));
+            output_vec3[ind] = dataToRGB(sim_output.action_potentials[sim_frame][ind], sim_output.data_min, sim_output.data_max);
         }
         runCUDA(sim_output.n_voxel, output_vec3);
 
@@ -133,28 +149,47 @@ void mainLoop(simulation_outputs sim_output) {
         glUseProgram(program[PROG_CARDIAC]);
         glBindVertexArray(cardiacVAO);
         glPointSize((GLfloat)pointSize);
-        glDrawElements(GL_POINTS, N_FOR_VIS + 1, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_POINTS, sim_output.n_voxel + 1, GL_UNSIGNED_INT, 0);
         glPointSize(1.0f);
 
         glUseProgram(0);
         glBindVertexArray(0);
-
+        sim_frame += 10;
         glfwSwapBuffers(window);
-        if (frame >= sim_output.n_step - sim_frame_step) break;
+        if (sim_frame >= sim_output.n_step - sim_frame_step - 1) {
+            break;
+        }
 #endif
     }
     glfwDestroyWindow(window);
     glfwTerminate();
 }
 
+bool initCUDA() {
+    //int gpuDevice = 0;
+    //int device_count = 0;
+    //cudaGetDeviceCount(&device_count);
+    //if (gpuDevice > device_count) {
+    //    std::cout
+    //        << "Error: GPU device number is greater than the number of devices!"
+    //        << " Perhaps a CUDA-capable GPU is not installed?"
+    //        << std::endl;
+    //    return false;
+    //}
+    //cudaGetDeviceProperties(&deviceProp, gpuDevice);
+    //int major = deviceProp.major;
+    //int minor = deviceProp.minor;
+    return true;
+}
+
 /**
 * Initialization of CUDA and GLFW.
 */
-bool init(simulation_inputs _sim_inputs) {
+bool initGLFW(simulation_inputs sim_input) {
     // Set window title to "Student Name: [SM 2.0] GPU Name"
-    
+    width = sim_input.visualization_resolution[0];
+    height = sim_input.visualization_resolution[1];
     projectName = "CUDA_Cardiac_Electrophysiological_Modeling";
-    cudaDeviceProp deviceProp;
     int gpuDevice = 0;
     int device_count = 0;
     cudaGetDeviceCount(&device_count);
@@ -175,7 +210,8 @@ bool init(simulation_inputs _sim_inputs) {
 
     // Window setup stuff
     glfwSetErrorCallback(errorCallback);
-
+    
+    
     if (!glfwInit()) {
         std::cout
             << "Error: Could not initialize GLFW!"
@@ -183,45 +219,46 @@ bool init(simulation_inputs _sim_inputs) {
             << std::endl;
         return false;
     }
-
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
+    
     window = glfwCreateWindow(width, height, deviceName.c_str(), NULL, NULL);
     if (!window) {
         glfwTerminate();
         return false;
     }
+    
     glfwMakeContextCurrent(window);
     glfwSetKeyCallback(window, keyCallback);
     glfwSetCursorPosCallback(window, mousePositionCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
-
+    
     glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) {
         return false;
     }
-
+    
     // Initialize drawing state
-    initVAO();
+    initVAO(sim_input.n_voxel);
 
     // Default to device ID 0. If you have more than one GPU and want to test a non-default one,
     // change the device ID.
     cudaGLSetGLDevice(0);
     cudaGLRegisterBufferObject(cardiacVBO_positions);
     cudaGLRegisterBufferObject(cardiacVBO_potential);
-    Cardiac::initSimulation(_sim_inputs.n_voxel, _sim_inputs.voxel);
+    Cardiac::initVisulization(sim_input.n_voxel, sim_input.voxel);
 
     updateCamera();
+    
     initShaders(program);
     glEnable(GL_DEPTH_TEST);
 
     return true;
 }
 
-void initVAO() {
+void initVAO(int N_FOR_VIS) {
 
     std::unique_ptr<GLfloat[]> bodies{ new GLfloat[4 * (N_FOR_VIS)] };
     std::unique_ptr<GLuint[]> bindices{ new GLuint[N_FOR_VIS] };

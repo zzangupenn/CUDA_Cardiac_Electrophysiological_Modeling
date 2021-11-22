@@ -66,6 +66,7 @@ set(headers
     src/json/json-forwards.h
     src/glslUtility.hpp
     src/kernel.h
+    src/sim_cpu.h
     src/utilityCore.hpp
     src/visualizer.h
     src/data_handler.h
@@ -76,6 +77,7 @@ set(sources
     src/jsoncpp.cpp
     src/glslUtility.cpp
     src/kernel.cu
+    src/sim_cpu.cpp
     src/main.cpp
     src/utilityCore.cpp
     src/visualizer.cpp
