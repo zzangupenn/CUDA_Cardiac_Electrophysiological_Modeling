@@ -2,13 +2,14 @@
 
 using namespace std;
 using namespace Eigen;
-
+int voxel_n = 0;
 ArrayXd sign_int(ArrayXi v) {
-    ArrayXd v_ret = (v > 0).select(ArrayXd::Ones(v.rows()), ArrayXd::Zero(v.rows()));
+    ArrayXd v_ret = (v != voxel_n).select(ArrayXd::Ones(v.rows()), ArrayXd::Zero(v.rows()));
     return v_ret;
 }
 
 simulation_data_parts prepare_parts(simulation_inputs sim_inputs) {
+    voxel_n = sim_inputs.n_voxel;
     Map<ArrayXi> px(sim_inputs.voxel_neighborhood[0], sim_inputs.n_voxel);
     Map<ArrayXi> mx(sim_inputs.voxel_neighborhood[1], sim_inputs.n_voxel);
     Map<ArrayXi> py(sim_inputs.voxel_neighborhood[2], sim_inputs.n_voxel);
@@ -117,7 +118,7 @@ simulation_data_parts prepare_parts(simulation_inputs sim_inputs) {
 }
 
 simulation_outputs Simulation_CPU(simulation_inputs sim_inputs) {
-
+    voxel_n = sim_inputs.n_voxel;
     Map<ArrayXi> px(sim_inputs.voxel_neighborhood[0], sim_inputs.n_voxel);
     Map<ArrayXi> mx(sim_inputs.voxel_neighborhood[1], sim_inputs.n_voxel);
     Map<ArrayXi> py(sim_inputs.voxel_neighborhood[2], sim_inputs.n_voxel);
@@ -185,10 +186,12 @@ simulation_outputs Simulation_CPU(simulation_inputs sim_inputs) {
     sim_output.n_voxel = sim_inputs.n_voxel;
     sim_output.data_min = v_gate(0);
     sim_output.data_max = 1.0;
-    sim_output.action_potentials = new double* [total_step];
-    for (int ind = 0; ind < total_step; ind++) {
+    int total_save = total_step / sim_inputs.num_of_dt_per_save;
+    sim_output.action_potentials = new double* [total_save];
+    for (int ind = 0; ind < total_save; ind++) {
         sim_output.action_potentials[ind] = new double[sim_inputs.n_voxel];
     }
+    int save_ind = 0;
 
     //auto start = chrono::high_resolution_clock::now();
     for (int ind = 0; ind < total_step; ind++) {
@@ -223,8 +226,10 @@ simulation_outputs Simulation_CPU(simulation_inputs sim_inputs) {
         sim_h_2 = (-sim_h / tau_close) * sim_inputs.dt + sim_h;
 
         sim_h = (sim_v_current < v_gate).select(sim_h_1, sim_h_2);
-
-        ArrayXd::Map(sim_output.action_potentials[ind], sim_output.n_voxel) = sim_v;
+        if (ind % sim_inputs.num_of_dt_per_save == 0) {
+            ArrayXd::Map(sim_output.action_potentials[save_ind], sim_output.n_voxel) = sim_v;
+            save_ind++;
+        }
     }
     //auto duration = chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - start);
     //cout << "Computation took " << duration.count() << " seconds" << endl;

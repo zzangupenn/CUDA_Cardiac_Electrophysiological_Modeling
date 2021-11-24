@@ -54,16 +54,15 @@ int main(int argc, char* argv[]) {
     print_str("Running simulation.");
     simulation_outputs sim_output;
     auto start = chrono::high_resolution_clock::now();
+    if (sim_inputs.visualization == 1) {
+        initGLFW(sim_inputs);
+    }
     if (sim_inputs.use_gpu != 1) {
         sim_output = Simulation_CPU(sim_inputs);
     }
     else {
-        if (sim_inputs.visualization == 1) {
-            initGLFW(sim_inputs);
-        }
         simulation_data_parts data_parts = prepare_parts(sim_inputs);
         Cardiac::initSimulation(sim_inputs, data_parts);
-        //sim_output = Cardiac::runSimulation_naive(sim_inputs);
         sim_output = Cardiac::runSimulation_optimized(sim_inputs);
         Cardiac::endSimulation();
     }

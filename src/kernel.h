@@ -21,7 +21,6 @@
 #endif
 
 namespace Cardiac {
-    simulation_outputs runSimulation_naive(simulation_inputs sim_inputs);
     simulation_outputs runSimulation_optimized(simulation_inputs sim_inputs);
     void initSimulation(simulation_inputs sim_inputs, simulation_data_parts data_parts);
     void endSimulation();

@@ -11,8 +11,9 @@ simulation_inputs import_para(string setting_path, string input_path) {
     file >> json_in;
     ret.dt = json_in["dt"].asDouble();
     ret.final_t = json_in["final_t"].asInt();
-    ret.use_gpu = json_in["use_gpu"].asInt();
     ret.visualization = json_in["visualization"].asInt();
+    ret.use_gpu = json_in["use_gpu"].asInt();
+    ret.num_of_dt_per_save = json_in["num_of_dt_per_save"].asInt();
     ret.visualization_resolution = new int[2];
     ret.visualization_resolution[0] = json_in["visualization_resolution"][0].asInt();
     ret.visualization_resolution[1] = json_in["visualization_resolution"][1].asInt();
@@ -64,6 +65,9 @@ simulation_inputs import_para(string setting_path, string input_path) {
 
         for (int ind2 = 0; ind2 < 18; ind2++) {
             ret.voxel_neighborhood[ind2][ind] = json_in["volume"]["voxel_neighborhood"][ind][ind2].asInt() - 1;
+            if (ret.voxel_neighborhood[ind2][ind] == -1) {
+                ret.voxel_neighborhood[ind2][ind] = ret.n_voxel;
+            }
         }
     }
     
@@ -155,6 +159,6 @@ int save_data(simulation_inputs sim_input, simulation_outputs sim_output, double
     //std::unique_ptr<Json::StreamWriter> writer(builder.newStreamWriter());
     //std::ofstream outputFileStream("sim_result.json");
     //writer->write(json_out, &outputFileStream);
-
+    return 0;
 
 }

@@ -116,7 +116,6 @@ void visualizationLoop(simulation_outputs sim_output) {
     double timebase = 0;
     int frame = 0;
     int sim_frame = 0;
-    int sim_frame_step = 10;
     glm::vec3* output_vec3 = new glm::vec3[sim_output.n_voxel];
     
     while (!glfwWindowShouldClose(window)) {
@@ -154,9 +153,9 @@ void visualizationLoop(simulation_outputs sim_output) {
 
         glUseProgram(0);
         glBindVertexArray(0);
-        sim_frame += 10;
+        sim_frame += 1;
         glfwSwapBuffers(window);
-        if (sim_frame >= sim_output.n_step - sim_frame_step - 1) {
+        if (sim_frame >= sim_output.n_step - 1) {
             break;
         }
 #endif

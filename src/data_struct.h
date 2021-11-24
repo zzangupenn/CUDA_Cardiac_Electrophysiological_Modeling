@@ -24,6 +24,7 @@ struct simulation_inputs {
     int save_visulization;
     string save_visulization_filename;
     double save_data_min_clip;
+    int num_of_dt_per_save;
 
     double delta;
     double* tau_in;
