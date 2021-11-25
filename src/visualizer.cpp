@@ -131,7 +131,7 @@ void visualizationLoop(simulation_outputs sim_output) {
             frame = 0;
         }
         for (int ind = 0; ind < sim_output.n_voxel; ind++) {
-            output_vec3[ind] = dataToRGB(sim_output.action_potentials[sim_frame][ind], sim_output.data_min, sim_output.data_max);
+            output_vec3[ind] = dataToRGB((double)sim_output.action_potentials_f[sim_frame][ind], sim_output.data_min, sim_output.data_max);
         }
         runCUDA(sim_output.n_voxel, output_vec3);
 

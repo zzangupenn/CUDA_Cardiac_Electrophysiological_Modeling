@@ -10,6 +10,7 @@ simulation_inputs import_para(string setting_path, string input_path) {
     file.open(setting_path);
     file >> json_in;
     ret.dt = json_in["dt"].asDouble();
+    ret.dt_f = (float)ret.dt;
     ret.final_t = json_in["final_t"].asInt();
     ret.visualization = json_in["visualization"].asInt();
     ret.use_gpu = json_in["use_gpu"].asInt();
@@ -36,7 +37,6 @@ simulation_inputs import_para(string setting_path, string input_path) {
     for (int ind2 = 0; ind2 < 18; ind2++) {
         ret.voxel_neighborhood[ind2] = new int[ret.n_voxel];
     }
-    ret.boundary_flag = new int[ret.n_voxel];
     ret.tau_in = new double[ret.n_voxel];
     ret.tau_out = new double[ret.n_voxel];
     ret.tau_open = new double[ret.n_voxel];
@@ -44,13 +44,15 @@ simulation_inputs import_para(string setting_path, string input_path) {
     ret.v_gate = new double[ret.n_voxel];
     ret.c_for_D = new double[ret.n_voxel];
     ret.D = new double*[ret.n_voxel];
+    ret.delta_sqr = json_in["volume"]["delta"].asDouble();
+    ret.delta_sqr = pow(ret.delta_sqr, 2.0);
+    ret.delta_sqr_f = (float)ret.delta_sqr;
 
 
     for (int ind = 0; ind < json_in["volume"]["voxel"].size(); ind++) {
 
         ret.voxel[ind] = glm::vec3(json_in["volume"]["voxel"][ind][0].asDouble(), json_in["volume"]["voxel"][ind][1].asDouble(), json_in["volume"]["voxel"][ind][2].asDouble());
-        ret.boundary_flag[ind] = json_in["volume"]["boundary_flag"][ind].asInt();
-        ret.delta = json_in["volume"]["delta"].asDouble();
+        
         ret.c_for_D[ind] = json_in["c_for_D"][ind].asDouble();
         ret.tau_in[ind] = json_in["tau_in"][ind].asDouble();
         ret.tau_out[ind] = json_in["tau_out"][ind].asDouble();
@@ -83,10 +85,12 @@ simulation_inputs import_para(string setting_path, string input_path) {
     int step_length = ret.J_stim.count[ret.J_stim.n_voxel];
     ret.J_stim.step = new int[step_length];
     ret.J_stim.value = new double[step_length];
+    ret.J_stim.value_f = new float[step_length];
 
     for (int ind = 0; ind < step_length; ind++) {
         ret.J_stim.step[ind] = json_in["J_stim"]["step"][ind].asInt();
         ret.J_stim.value[ind] = json_in["J_stim"]["value"][ind].asDouble();
+        ret.J_stim.value_f[ind] = json_in["J_stim"]["value"][ind].asFloat();
     }
     
     file.close();

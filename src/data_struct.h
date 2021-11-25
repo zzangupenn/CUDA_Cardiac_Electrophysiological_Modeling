@@ -10,10 +10,12 @@ struct J_stim_struct {
     int* voxel_ind;
     int* step;
     double* value;
+    float* value_f;
     int* count;
 };
 
 struct simulation_inputs {
+    float dt_f;
     double dt;
     int final_t;
     int save_result;
@@ -26,7 +28,8 @@ struct simulation_inputs {
     double save_data_min_clip;
     int num_of_dt_per_save;
 
-    double delta;
+    double delta_sqr;
+    float delta_sqr_f;
     double* tau_in;
     double* tau_out;
     double* tau_open;
@@ -37,7 +40,6 @@ struct simulation_inputs {
     double** D;
     glm::vec3* voxel;
     int** voxel_neighborhood;
-    int* boundary_flag;
     J_stim_struct J_stim;
 };
 
@@ -45,6 +47,7 @@ struct simulation_outputs {
     int n_voxel;
     int n_step;
     double** action_potentials;
+    float** action_potentials_f;
     double data_min;
     double data_max;
 };
@@ -65,5 +68,9 @@ struct simulation_data_parts {
     double* part13;
     double* part14;
     double* part15;
-    //double** parts = new double* [15];
+    int* indices;
+    double* coefficients;
+    double* sim_h_init;
+    float* coefficients_f;
+    float* sim_h_init_f;
 };

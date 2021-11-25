@@ -28,8 +28,10 @@ void checkCUDAError(const char *msg, int line = -1) {
 * Configuration *
 *****************/
 
+#define SPLIT_NUM 1
+
 /*! Block size used for CUDA kernel launch. */
-#define blockSize 256
+#define blockSize 32
 
 /*! Size of the starting area in simulation space. */
 #define scene_scale 25.0f
@@ -46,6 +48,420 @@ glm::vec3* dev_ap_gl;
 double* sim_v1;
 double* sim_v2;
 double* sim_h;
+int* indices;
+double* coefficients;
+double* dt_delta;
+int* n_voxel;
+
+int* J_stim_ind_min_max;
+int* J_stim_ind_min_max_h = new int[2];
+int* J_stim_step;
+int* J_stim_n_voxel;
+int* J_stim_voxel_ind;
+double* J_stim_value;
+int* J_stim_count;
+
+float* sim_v1_f;
+float* sim_v2_f;
+float* sim_h_f;
+float* coefficients_f;
+float* dt_delta_f;
+float* J_stim_value_f;
+
+/******************
+* Simulation * FLOAT *****************************************************************************
+******************/
+
+void Cardiac::initSimulation_float(simulation_inputs sim_inputs, simulation_data_parts data_parts) {
+    int N = sim_inputs.n_voxel;
+    numObjects = sim_inputs.n_voxel;
+    dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
+    int voxel_n_by_blockSize = (numObjects / blockSize + 1) * blockSize;
+    cudaMalloc((void**)&indices, voxel_n_by_blockSize * 18 * sizeof(int));
+    cudaMemset((void*)indices, 0, voxel_n_by_blockSize * 18 * sizeof(int));
+    cudaMemcpy(indices, data_parts.indices, voxel_n_by_blockSize * 18 * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&coefficients_f, voxel_n_by_blockSize * 20 * sizeof(float));
+    cudaMemcpy(coefficients_f, data_parts.coefficients_f, voxel_n_by_blockSize * 20 * sizeof(float), cudaMemcpyHostToDevice);
+
+    cudaMalloc((void**)&dt_delta_f, 2 * sizeof(float));
+    cudaMemcpy(dt_delta_f, &(sim_inputs.dt_f), sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(dt_delta_f + 1, &(sim_inputs.delta_sqr_f), sizeof(float), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&n_voxel, sizeof(int));
+    cudaMemcpy(n_voxel, &(sim_inputs.n_voxel), sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&sim_v1_f, (numObjects + 1) * sizeof(float));
+    cudaMemset((void*)sim_v1_f, 0, (numObjects + 1) * sizeof(float));
+    cudaMalloc((void**)&sim_v2_f, (numObjects + 1) * sizeof(float));
+    cudaMemset((void*)sim_v2_f, 0, (numObjects + 1) * sizeof(float));
+    cudaMalloc((void**)&sim_h_f, N * sizeof(float));
+    cudaMemcpy(sim_h_f, data_parts.sim_h_init_f, N * sizeof(float), cudaMemcpyHostToDevice);
+
+    cudaMalloc((void**)&J_stim_n_voxel, sizeof(int));
+    cudaMemcpy(J_stim_n_voxel, &(sim_inputs.J_stim.n_voxel), sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_voxel_ind, sim_inputs.J_stim.n_voxel * sizeof(int));
+    cudaMemcpy(J_stim_voxel_ind, sim_inputs.J_stim.voxel_ind, sim_inputs.J_stim.n_voxel * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_count, sim_inputs.J_stim.n_voxel * sizeof(int));
+    cudaMemcpy(J_stim_count, sim_inputs.J_stim.count, sim_inputs.J_stim.n_voxel * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_step, sim_inputs.J_stim.count[sim_inputs.J_stim.n_voxel - 1] * sizeof(int));
+    cudaMemcpy(J_stim_step, sim_inputs.J_stim.step, sim_inputs.J_stim.count[sim_inputs.J_stim.n_voxel - 1] * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_value_f, N * sizeof(float));
+    cudaMemcpy(J_stim_value_f, sim_inputs.J_stim.value_f, sim_inputs.J_stim.count[sim_inputs.J_stim.n_voxel - 1] * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_ind_min_max, 2 * sizeof(int));
+
+    J_stim_ind_min_max_h[0] = INT_MAX;
+    J_stim_ind_min_max_h[1] = 0;
+    for (int ind = 0; ind < sim_inputs.J_stim.count[sim_inputs.J_stim.n_voxel - 1]; ind++) {
+        if (J_stim_ind_min_max_h[0] > sim_inputs.J_stim.step[ind]) J_stim_ind_min_max_h[0] = sim_inputs.J_stim.step[ind];
+        if (J_stim_ind_min_max_h[1] < sim_inputs.J_stim.step[ind]) J_stim_ind_min_max_h[1] = sim_inputs.J_stim.step[ind];
+    }
+    cudaMemcpy(J_stim_ind_min_max, J_stim_ind_min_max_h, 2 * sizeof(int), cudaMemcpyHostToDevice);
+
+    cudaDeviceSynchronize();
+}
+
+__global__ void simulation_kernel_float(int step, float* sim_v1, float* dt_delta,
+    float* sim_v2,
+    float* sim_h,
+    int* J_stim_step,
+    int* J_stim_n_voxel,
+    int* J_stim_voxel_ind,
+    float* J_stim_value,
+    int* J_stim_count,
+    int* J_stim_ind_min_max,
+    int* n_voxel,
+    int* indices_,
+    float* coefficients_) {
+
+    for (int sub_ind = 0; sub_ind < SPLIT_NUM; sub_ind++) {
+        int blockIdx_x_times_SPLIT_NUM = blockIdx.x * SPLIT_NUM;
+        int index = threadIdx.x + ((blockIdx_x_times_SPLIT_NUM + sub_ind) * blockDim.x);
+        if (index > n_voxel[0] - 1) {
+            return;
+        }
+        int* indices = indices_ + ((blockIdx_x_times_SPLIT_NUM + sub_ind) * blockDim.x) * 18;
+        float* coefficients = coefficients_ + ((blockIdx_x_times_SPLIT_NUM + sub_ind) * blockDim.x) * 20;
+
+        float sim_v1_index = sim_v1[index];
+        float diffusion_term = 1.0 / (4.0 * dt_delta[1]) *
+            ((sim_v1[indices[threadIdx.x + blockDim.x * 0]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 0] + (sim_v1[indices[threadIdx.x + blockDim.x * 1]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 1] +
+                (sim_v1[indices[threadIdx.x + blockDim.x * 2]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 2] + (sim_v1[indices[threadIdx.x + blockDim.x * 3]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 3] +
+                (sim_v1[indices[threadIdx.x + blockDim.x * 4]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 4] + (sim_v1[indices[threadIdx.x + blockDim.x * 5]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 5] +
+                (sim_v1[indices[threadIdx.x + blockDim.x * 0]] - sim_v1[indices[threadIdx.x + blockDim.x * 1]]) * coefficients[threadIdx.x + blockDim.x * 6] +
+                (sim_v1[indices[threadIdx.x + blockDim.x * 2]] - sim_v1[indices[threadIdx.x + blockDim.x * 3]]) * coefficients[threadIdx.x + blockDim.x * 7] +
+                (sim_v1[indices[threadIdx.x + blockDim.x * 4]] - sim_v1[indices[threadIdx.x + blockDim.x * 5]]) * coefficients[threadIdx.x + blockDim.x * 8] +
+                (sim_v1[indices[threadIdx.x + blockDim.x * 6]] - sim_v1[indices[threadIdx.x + blockDim.x * 8]]) * coefficients[threadIdx.x + blockDim.x * 9] + (sim_v1[indices[threadIdx.x + blockDim.x * 9]] - sim_v1[indices[threadIdx.x + blockDim.x * 7]]) * coefficients[threadIdx.x + blockDim.x * 10] +
+                (sim_v1[indices[threadIdx.x + blockDim.x * 14]] - sim_v1[indices[threadIdx.x + blockDim.x * 16]]) * coefficients[threadIdx.x + blockDim.x * 10] + (sim_v1[indices[threadIdx.x + blockDim.x * 17]] - sim_v1[indices[threadIdx.x + blockDim.x * 15]]) * coefficients[threadIdx.x + blockDim.x * 12] +
+                (sim_v1[indices[threadIdx.x + blockDim.x * 10]] - sim_v1[indices[threadIdx.x + blockDim.x * 12]]) * coefficients[threadIdx.x + blockDim.x * 13] + (sim_v1[indices[threadIdx.x + blockDim.x * 13]] - sim_v1[indices[threadIdx.x + blockDim.x * 11]]) * coefficients[threadIdx.x + blockDim.x * 14]);
+
+    //    float diffusion_term = 1.0 / (4.0 * dt_delta[1]) *
+    //((sim_v1[indices[threadIdx.x + blockSize * 0]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 0] + (sim_v1[indices[threadIdx.x + blockSize * 1]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 1] +
+    //    (sim_v1[indices[threadIdx.x + blockSize * 2]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 2] + (sim_v1[indices[threadIdx.x + blockSize * 3]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 3] +
+    //    (sim_v1[indices[threadIdx.x + blockSize * 4]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 4] + (sim_v1[indices[threadIdx.x + blockSize * 5]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 5] +
+    //    (sim_v1[indices[threadIdx.x + blockSize * 0]] - sim_v1[indices[threadIdx.x + blockSize * 1]]) * coefficients[threadIdx.x + blockSize * 6] +
+    //    (sim_v1[indices[threadIdx.x + blockSize * 2]] - sim_v1[indices[threadIdx.x + blockSize * 3]]) * coefficients[threadIdx.x + blockSize * 7] +
+    //    (sim_v1[indices[threadIdx.x + blockSize * 4]] - sim_v1[indices[threadIdx.x + blockSize * 5]]) * coefficients[threadIdx.x + blockSize * 8] +
+    //    (sim_v1[indices[threadIdx.x + blockSize * 6]] - sim_v1[indices[threadIdx.x + blockSize * 8]]) * coefficients[threadIdx.x + blockSize * 9] + (sim_v1[indices[threadIdx.x + blockSize * 9]] - sim_v1[indices[threadIdx.x + blockSize * 7]]) * coefficients[threadIdx.x + blockSize * 10] +
+    //    (sim_v1[indices[threadIdx.x + blockSize * 14]] - sim_v1[indices[threadIdx.x + blockSize * 16]]) * coefficients[threadIdx.x + blockSize * 10] + (sim_v1[indices[threadIdx.x + blockSize * 17]] - sim_v1[indices[threadIdx.x + blockSize * 15]]) * coefficients[threadIdx.x + blockSize * 12] +
+    //    (sim_v1[indices[threadIdx.x + blockSize * 10]] - sim_v1[indices[threadIdx.x + blockSize * 12]]) * coefficients[threadIdx.x + blockSize * 13] + (sim_v1[indices[threadIdx.x + blockSize * 13]] - sim_v1[indices[threadIdx.x + blockSize * 11]]) * coefficients[threadIdx.x + blockSize * 14]);
+
+
+        float J_stim = 0.0;
+        [&] {
+            if (step >= J_stim_ind_min_max[0] && step <= J_stim_ind_min_max[1]) {
+                for (int count_ind = 0; count_ind < J_stim_n_voxel[0]; count_ind++) {
+                    if (index == J_stim_voxel_ind[count_ind]) {
+                        for (int step_ind = J_stim_count[count_ind]; step_ind < J_stim_count[count_ind + 1]; step_ind++) {
+                            if (J_stim_step[step_ind] - 1 == step) {
+                                J_stim = J_stim_value[step_ind];
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }();
+
+        float sim_h_index = sim_h[index];
+        sim_v2[index] = ((sim_h_index * sim_v1_index * sim_v1_index * coefficients[threadIdx.x + blockDim.x * 17] * (1 - sim_v1_index)) + (-sim_v1_index * coefficients[threadIdx.x + blockDim.x * 18]) + J_stim + diffusion_term) * dt_delta[0] + sim_v1_index;
+        if (sim_v1_index < coefficients[threadIdx.x + blockDim.x * 19]) {
+            sim_h[index] = ((1 - sim_h_index) * coefficients[threadIdx.x + blockDim.x * 15]) * dt_delta[0] + sim_h_index;
+        }
+        else {
+            sim_h[index] = (-sim_h_index * coefficients[threadIdx.x + blockDim.x * 16]) * dt_delta[0] + sim_h_index;
+        }
+
+        //float sim_h_index = sim_h[index];
+        //sim_v2[index] = ((sim_h_index * sim_v1_index * sim_v1_index * coefficients[threadIdx.x + blockSize * 17] * (1 - sim_v1_index)) + (-sim_v1_index * coefficients[threadIdx.x + blockSize * 18]) + J_stim + diffusion_term) * dt_delta[0] + sim_v1_index;
+        //if (sim_v1_index < coefficients[threadIdx.x + blockSize * 19]) {
+        //    sim_h[index] = ((1 - sim_h_index) * coefficients[threadIdx.x + blockSize * 15]) * dt_delta[0] + sim_h_index;
+        //}
+        //else {
+        //    sim_h[index] = (-sim_h_index * coefficients[threadIdx.x + blockSize * 16]) * dt_delta[0] + sim_h_index;
+        //}
+
+    }
+
+    return;
+}
+
+simulation_outputs Cardiac::runSimulation_float(simulation_inputs sim_inputs) {
+    dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize / SPLIT_NUM);
+
+    simulation_outputs sim_output;
+    int total_step = sim_inputs.final_t / sim_inputs.dt;
+    sim_output.n_step = total_step;
+    sim_output.n_voxel = sim_inputs.n_voxel;
+    sim_output.data_min = sim_inputs.v_gate[0];
+    sim_output.data_max = 1.0;
+    int total_save = total_step / sim_inputs.num_of_dt_per_save;
+    sim_output.action_potentials_f = new float* [total_save];
+    int save_ind = 0;
+
+    for (int ind = 0; ind < total_step; ind++) {
+        if (ind % 1000 == 0) {
+            printf("%d\n", ind);
+        }
+
+        simulation_kernel_float << < fullBlocksPerGrid, blockSize >> > (ind, sim_v1_f,
+            dt_delta_f,
+            sim_v2_f,
+            sim_h_f,
+            J_stim_step,
+            J_stim_n_voxel,
+            J_stim_voxel_ind,
+            J_stim_value_f,
+            J_stim_count,
+            J_stim_ind_min_max,
+            n_voxel,
+            indices,
+            coefficients_f);
+        cudaDeviceSynchronize();
+        std::swap(sim_v1_f, sim_v2_f);
+        if (ind % sim_inputs.num_of_dt_per_save == 0 || ind == total_step - 1) {
+            sim_output.action_potentials_f[save_ind] = new float[numObjects];
+            cudaMemcpy(sim_output.action_potentials_f[save_ind], sim_v1_f, numObjects * sizeof(float), cudaMemcpyDeviceToHost);
+            save_ind++;
+        }
+
+
+    }
+    return sim_output;
+}
+
+
+void Cardiac::endSimulation_float() {
+    cudaFree(sim_v1_f);
+    cudaFree(dt_delta_f);
+    cudaFree(sim_v2_f);
+    cudaFree(sim_h_f);
+    cudaFree(indices);
+    cudaFree(coefficients_f);
+    cudaFree(J_stim_step);
+    cudaFree(J_stim_n_voxel);
+    cudaFree(J_stim_voxel_ind);
+    cudaFree(J_stim_value_f);
+    cudaFree(J_stim_count);
+    cudaFree(J_stim_ind_min_max);
+    cudaDeviceSynchronize();
+}
+
+/******************
+* Simulation * DOUBLE *****************************************************************************
+******************/
+
+void Cardiac::initSimulation(simulation_inputs sim_inputs, simulation_data_parts data_parts) {
+    int N = sim_inputs.n_voxel;
+    numObjects = sim_inputs.n_voxel;
+    dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
+    int voxel_n_by_blockSize = (numObjects / blockSize + 1) * blockSize;
+    cudaMalloc((void**)&indices, voxel_n_by_blockSize * 18 * sizeof(int));
+    cudaMemset((void*)indices, 0, voxel_n_by_blockSize * 18 * sizeof(int));
+    cudaMemcpy(indices, data_parts.indices, voxel_n_by_blockSize * 18 * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&coefficients, voxel_n_by_blockSize * 20 * sizeof(double));
+    cudaMemcpy(coefficients, data_parts.coefficients, voxel_n_by_blockSize * 20 * sizeof(double), cudaMemcpyHostToDevice);
+
+    cudaMalloc((void**)&dt_delta, 2 * sizeof(double));
+    cudaMemcpy(dt_delta, &(sim_inputs.dt), sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(dt_delta + 1, &(sim_inputs.delta_sqr), sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&n_voxel, sizeof(int));
+    cudaMemcpy(n_voxel, &(sim_inputs.n_voxel), sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&sim_v1, (numObjects + 1) * sizeof(double));
+    cudaMemset((void*)sim_v1, 0, (numObjects + 1) * sizeof(double));
+    cudaMalloc((void**)&sim_v2, (numObjects + 1) * sizeof(double));
+    cudaMemset((void*)sim_v2, 0, (numObjects + 1) * sizeof(double));
+    cudaMalloc((void**)&sim_h, N * sizeof(double));
+    cudaMemcpy(sim_h, data_parts.sim_h_init, N * sizeof(double), cudaMemcpyHostToDevice);
+
+    cudaMalloc((void**)&J_stim_n_voxel, sizeof(int));
+    cudaMemcpy(J_stim_n_voxel, &(sim_inputs.J_stim.n_voxel), sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_voxel_ind, sim_inputs.J_stim.n_voxel * sizeof(int));
+    cudaMemcpy(J_stim_voxel_ind, sim_inputs.J_stim.voxel_ind, sim_inputs.J_stim.n_voxel * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_count, sim_inputs.J_stim.n_voxel * sizeof(int));
+    cudaMemcpy(J_stim_count, sim_inputs.J_stim.count, sim_inputs.J_stim.n_voxel * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_step, sim_inputs.J_stim.count[sim_inputs.J_stim.n_voxel - 1] * sizeof(int));
+    cudaMemcpy(J_stim_step, sim_inputs.J_stim.step, sim_inputs.J_stim.count[sim_inputs.J_stim.n_voxel - 1] * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_value, N * sizeof(double));
+    cudaMemcpy(J_stim_value, sim_inputs.J_stim.value, sim_inputs.J_stim.count[sim_inputs.J_stim.n_voxel - 1] * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&J_stim_ind_min_max, 2 * sizeof(int));
+
+    J_stim_ind_min_max_h[0] = INT_MAX;
+    J_stim_ind_min_max_h[1] = 0;
+    for (int ind = 0; ind < sim_inputs.J_stim.count[sim_inputs.J_stim.n_voxel - 1]; ind++) {
+        if (J_stim_ind_min_max_h[0] > sim_inputs.J_stim.step[ind]) J_stim_ind_min_max_h[0] = sim_inputs.J_stim.step[ind];
+        if (J_stim_ind_min_max_h[1] < sim_inputs.J_stim.step[ind]) J_stim_ind_min_max_h[1] = sim_inputs.J_stim.step[ind];
+    }
+    cudaMemcpy(J_stim_ind_min_max, J_stim_ind_min_max_h, 2 * sizeof(int), cudaMemcpyHostToDevice);
+
+    cudaDeviceSynchronize();
+}
+
+__global__ void simulation_kernel(int step, double* sim_v1, double* dt_delta,
+    double* sim_v2,
+    double* sim_h,
+    int* J_stim_step,
+    int* J_stim_n_voxel,
+    int* J_stim_voxel_ind,
+    double* J_stim_value,
+    int* J_stim_count,
+    int* J_stim_ind_min_max,
+    int* n_voxel,
+    int* indices,
+    double* coefficients) {
+    int index = threadIdx.x + (blockIdx.x * blockDim.x);
+    //indices += (blockIdx.x * blockSize) * 18;
+    //coefficients += (blockIdx.x * blockSize) * 20;
+    indices += (blockIdx.x * blockDim.x) * 18;
+    coefficients += (blockIdx.x * blockDim.x) * 20;
+
+    if (index > n_voxel[0] - 1) {
+        return;
+    }
+
+    double sim_v1_index = sim_v1[index];          
+    //double diffusion_term = 1.0 / (4.0 * dt_delta[1]) *
+    //    ((sim_v1[indices[threadIdx.x + blockSize * 0]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 0] + (sim_v1[indices[threadIdx.x + blockSize * 1]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 1] +
+    //        (sim_v1[indices[threadIdx.x + blockSize * 2]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 2] + (sim_v1[indices[threadIdx.x + blockSize * 3]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 3] +
+    //        (sim_v1[indices[threadIdx.x + blockSize * 4]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 4] + (sim_v1[indices[threadIdx.x + blockSize * 5]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 5] +
+    //        (sim_v1[indices[threadIdx.x + blockSize * 0]] - sim_v1[indices[threadIdx.x + blockSize * 1]]) * coefficients[threadIdx.x + blockSize * 6] +
+    //        (sim_v1[indices[threadIdx.x + blockSize * 2]] - sim_v1[indices[threadIdx.x + blockSize * 3]]) * coefficients[threadIdx.x + blockSize * 7] +
+    //        (sim_v1[indices[threadIdx.x + blockSize * 4]] - sim_v1[indices[threadIdx.x + blockSize * 5]]) * coefficients[threadIdx.x + blockSize * 8] +
+    //        (sim_v1[indices[threadIdx.x + blockSize * 6]] - sim_v1[indices[threadIdx.x + blockSize * 8]]) * coefficients[threadIdx.x + blockSize * 9] + (sim_v1[indices[threadIdx.x + blockSize * 9]] - sim_v1[indices[threadIdx.x + blockSize * 7]]) * coefficients[threadIdx.x + blockSize * 10] +
+    //        (sim_v1[indices[threadIdx.x + blockSize * 14]] - sim_v1[indices[threadIdx.x + blockSize * 16]]) * coefficients[threadIdx.x + blockSize * 10] + (sim_v1[indices[threadIdx.x + blockSize * 17]] - sim_v1[indices[threadIdx.x + blockSize * 15]]) * coefficients[threadIdx.x + blockSize * 12] +
+    //        (sim_v1[indices[threadIdx.x + blockSize * 10]] - sim_v1[indices[threadIdx.x + blockSize * 12]]) * coefficients[threadIdx.x + blockSize * 13] + (sim_v1[indices[threadIdx.x + blockSize * 13]] - sim_v1[indices[threadIdx.x + blockSize * 11]]) * coefficients[threadIdx.x + blockSize * 14]);
+
+    double diffusion_term = 1.0 / (4.0 * dt_delta[1]) *
+        ((sim_v1[indices[threadIdx.x + blockDim.x * 0]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 0] + (sim_v1[indices[threadIdx.x + blockDim.x * 1]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 1] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 2]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 2] + (sim_v1[indices[threadIdx.x + blockDim.x * 3]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 3] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 4]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 4] + (sim_v1[indices[threadIdx.x + blockDim.x * 5]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 5] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 0]] - sim_v1[indices[threadIdx.x + blockDim.x * 1]]) * coefficients[threadIdx.x + blockDim.x * 6] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 2]] - sim_v1[indices[threadIdx.x + blockDim.x * 3]]) * coefficients[threadIdx.x + blockDim.x * 7] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 4]] - sim_v1[indices[threadIdx.x + blockDim.x * 5]]) * coefficients[threadIdx.x + blockDim.x * 8] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 6]] - sim_v1[indices[threadIdx.x + blockDim.x * 8]]) * coefficients[threadIdx.x + blockDim.x * 9] + (sim_v1[indices[threadIdx.x + blockDim.x * 9]] - sim_v1[indices[threadIdx.x + blockDim.x * 7]]) * coefficients[threadIdx.x + blockDim.x * 10] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 14]] - sim_v1[indices[threadIdx.x + blockDim.x * 16]]) * coefficients[threadIdx.x + blockDim.x * 10] + (sim_v1[indices[threadIdx.x + blockDim.x * 17]] - sim_v1[indices[threadIdx.x + blockDim.x * 15]]) * coefficients[threadIdx.x + blockDim.x * 12] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 10]] - sim_v1[indices[threadIdx.x + blockDim.x * 12]]) * coefficients[threadIdx.x + blockDim.x * 13] + (sim_v1[indices[threadIdx.x + blockDim.x * 13]] - sim_v1[indices[threadIdx.x + blockDim.x * 11]]) * coefficients[threadIdx.x + blockDim.x * 14]);
+
+
+    double J_stim = 0.0;
+    [&] {
+        if (step >= J_stim_ind_min_max[0] && step <= J_stim_ind_min_max[1]) {
+            for (int count_ind = 0; count_ind < J_stim_n_voxel[0]; count_ind++) {
+                if (index == J_stim_voxel_ind[count_ind]) {
+                    for (int step_ind = J_stim_count[count_ind]; step_ind < J_stim_count[count_ind + 1]; step_ind++) {
+                        if (J_stim_step[step_ind] - 1 == step) {
+                            J_stim = J_stim_value[step_ind];
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }();
+
+    double sim_h_index = sim_h[index];
+    sim_v2[index] = ((sim_h_index * sim_v1_index * sim_v1_index * coefficients[threadIdx.x + blockDim.x * 17] * (1 - sim_v1_index)) + (-sim_v1_index * coefficients[threadIdx.x + blockDim.x * 18]) + J_stim + diffusion_term) * dt_delta[0] + sim_v1_index;
+    if (sim_v1_index < coefficients[threadIdx.x + blockDim.x * 19]) {
+        sim_h[index] = ((1 - sim_h_index) * coefficients[threadIdx.x + blockDim.x * 15]) * dt_delta[0] + sim_h_index;
+    }
+    else {
+        sim_h[index] = (-sim_h_index * coefficients[threadIdx.x + blockDim.x * 16]) * dt_delta[0] + sim_h_index;
+    }
+
+    //double sim_h_index = sim_h[index];
+    //sim_v2[index] = ((sim_h_index * sim_v1_index * sim_v1_index * coefficients[threadIdx.x + blockSize * 17] * (1 - sim_v1_index)) + (-sim_v1_index * coefficients[threadIdx.x + blockSize * 18]) + J_stim + diffusion_term) * dt_delta[0] + sim_v1_index;
+    //if (sim_v1_index < coefficients[threadIdx.x + blockSize * 19]) {
+    //    sim_h[index] = ((1 - sim_h_index) * coefficients[threadIdx.x + blockSize * 15]) * dt_delta[0] + sim_h_index;
+    //}
+    //else {
+    //    sim_h[index] = (-sim_h_index * coefficients[threadIdx.x + blockSize * 16]) * dt_delta[0] + sim_h_index;
+    //}
+
+    return;
+}
+
+simulation_outputs Cardiac::runSimulation(simulation_inputs sim_inputs) {
+    dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
+    double* J_stim = new double[numObjects];
+    int temp_ptr;
+
+    simulation_outputs sim_output;
+    int total_step = sim_inputs.final_t / sim_inputs.dt;
+    sim_output.n_step = total_step;
+    sim_output.n_voxel = sim_inputs.n_voxel;
+    sim_output.data_min = sim_inputs.v_gate[0];
+    sim_output.data_max = 1.0;
+    int total_save = total_step / sim_inputs.num_of_dt_per_save;
+    sim_output.action_potentials = new double* [total_save];
+    int save_ind = 0;
+
+    for (int ind = 0; ind < total_step; ind++) {
+        if (ind % 1000 == 0) {
+            printf("%d\n", ind);
+        }
+
+        simulation_kernel << < fullBlocksPerGrid, blockSize >> > (ind, sim_v1,
+            dt_delta,
+            sim_v2,
+            sim_h,
+            J_stim_step,
+            J_stim_n_voxel,
+            J_stim_voxel_ind,
+            J_stim_value,
+            J_stim_count,
+            J_stim_ind_min_max,
+            n_voxel,
+            indices,
+            coefficients);
+        cudaDeviceSynchronize();
+        std::swap(sim_v1, sim_v2);
+        if (ind % sim_inputs.num_of_dt_per_save == 0 || ind == total_step - 1) {
+            sim_output.action_potentials[save_ind] = new double[numObjects];
+            cudaMemcpy(sim_output.action_potentials[save_ind], sim_v1, numObjects * sizeof(double), cudaMemcpyDeviceToHost);
+            save_ind++;
+        }
+              
+        
+    }
+    return sim_output;
+}
+
+void Cardiac::endSimulation() {
+    cudaFree(sim_v1);
+    cudaFree(dt_delta);
+    cudaFree(sim_v2);
+    cudaFree(sim_h);
+    cudaFree(indices);
+    cudaFree(coefficients);
+    cudaFree(J_stim_step);
+    cudaFree(J_stim_n_voxel);
+    cudaFree(J_stim_voxel_ind);
+    cudaFree(J_stim_value);
+    cudaFree(J_stim_count);
+    cudaFree(J_stim_ind_min_max);
+    cudaDeviceSynchronize();
+}
+
+/******************
+* Simulation * NAIVE *****************************************************************************
+******************/
 
 double* part1;
 double* part2;
@@ -85,31 +501,15 @@ int* pxpz;
 int* mxpz;
 int* pxmz;
 int* mxmz;
-double* DT;
-int* n_voxel;
 
-int* J_stim_ind_min_max;
-int* J_stim_ind_min_max_h = new int[2];
-double* J_stim_voxel;
-int* J_stim_step;
-int* J_stim_n_voxel;
-int* J_stim_voxel_ind;
-double* J_stim_value;
-int* J_stim_count;
-
-
-
-/******************
-* Simulation *
-******************/
-
-void Cardiac::initSimulation(simulation_inputs sim_inputs, simulation_data_parts data_parts) {
+void Cardiac::initSimulation_naive(simulation_inputs sim_inputs, simulation_data_parts data_parts) {
     int N = sim_inputs.n_voxel;
     numObjects = sim_inputs.n_voxel;
     dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
 
-    cudaMalloc((void**)&DT, sizeof(double));
-    cudaMemcpy(DT, &(sim_inputs.dt), sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&dt_delta, 2 * sizeof(double));
+    cudaMemcpy(dt_delta, &(sim_inputs.dt), sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(dt_delta + 1, &(sim_inputs.delta_sqr), sizeof(double), cudaMemcpyHostToDevice);
     cudaMalloc((void**)&n_voxel, sizeof(int));
     cudaMemcpy(n_voxel, &(sim_inputs.n_voxel), sizeof(int), cudaMemcpyHostToDevice);
     cudaMalloc((void**)&sim_v1, (numObjects + 1) * sizeof(double));
@@ -230,7 +630,7 @@ void Cardiac::initSimulation(simulation_inputs sim_inputs, simulation_data_parts
     cudaDeviceSynchronize();
 }
 
-__global__ void simulation_kernel_optimized(int step, double* sim_v1, double* dt,
+__global__ void simulation_kernel_naive(int step, double* sim_v1, double* dt_delta,
     double* sim_v2,
     double* sim_h,
     double* part1,
@@ -279,11 +679,11 @@ __global__ void simulation_kernel_optimized(int step, double* sim_v1, double* dt
     int* J_stim_ind_min_max,
     int* n_voxel) {
     int index = threadIdx.x + (blockIdx.x * blockDim.x);
-    if (index == n_voxel[0]) {
+    if (index == n_voxel[0]-1) {
         return;
     }
     double sim_v1_index = sim_v1[index];
-    double diffusion_term = 1.0 / (4.0 * 4.0) *
+    double diffusion_term = 1.0 / (4.0 * dt_delta[1]) *
         ((sim_v1[px[index]] - sim_v1_index) * part1[index] + (sim_v1[mx[index]] - sim_v1_index) * part2[index] +
             (sim_v1[py[index]] - sim_v1_index) * part3[index] + (sim_v1[my[index]] - sim_v1_index) * part4[index] +
             (sim_v1[pz[index]] - sim_v1_index) * part5[index] + (sim_v1[mz[index]] - sim_v1_index) * part6[index] +
@@ -302,8 +702,6 @@ __global__ void simulation_kernel_optimized(int step, double* sim_v1, double* dt
                 for (int step_ind = J_stim_count[count_ind]; step_ind < J_stim_count[count_ind + 1]; step_ind++) {
                     if (J_stim_step[step_ind] - 1 == step) {
                         J_stim = J_stim_value[step_ind];
-                        step_ind = J_stim_count[count_ind + 1];
-                        count_ind = J_stim_n_voxel[0];
                         return;
                     }
                 }
@@ -313,17 +711,17 @@ __global__ void simulation_kernel_optimized(int step, double* sim_v1, double* dt
     }();
 
     double sim_h_index = sim_h[index];
-    sim_v2[index] = ((sim_h_index * sim_v1_index * sim_v1_index * (1 - sim_v1_index) / tau_in[index]) + (-sim_v1_index / tau_out[index]) + J_stim + diffusion_term) * dt[0] + sim_v1_index;
+    sim_v2[index] = ((sim_h_index * sim_v1_index * sim_v1_index * (1 - sim_v1_index) / tau_in[index]) + (-sim_v1_index / tau_out[index]) + J_stim + diffusion_term) * dt_delta[0] + sim_v1_index;
     if (sim_v1_index < v_gate[index]) {
-        sim_h[index] = ((1 - sim_h_index) / tau_open[index]) * dt[0] + sim_h_index;
+        sim_h[index] = ((1 - sim_h_index) / tau_open[index]) * dt_delta[0] + sim_h_index;
     }
     else {
-        sim_h[index] = (-sim_h_index / tau_close[index]) * dt[0] + sim_h_index;
+        sim_h[index] = (-sim_h_index / tau_close[index]) * dt_delta[0] + sim_h_index;
     }
     return;
 }
 
-simulation_outputs Cardiac::runSimulation_optimized(simulation_inputs sim_inputs) {
+simulation_outputs Cardiac::runSimulation_naive(simulation_inputs sim_inputs) {
     dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
     double* J_stim = new double[numObjects];
     int temp_ptr;
@@ -343,8 +741,8 @@ simulation_outputs Cardiac::runSimulation_optimized(simulation_inputs sim_inputs
             printf("%d\n", ind);
         }
 
-        simulation_kernel_optimized << < fullBlocksPerGrid, blockSize >> > (ind, sim_v1,
-            DT,
+        simulation_kernel_naive << < fullBlocksPerGrid, blockSize >> > (ind, sim_v1,
+            dt_delta,
             sim_v2,
             sim_h,
             part1,
@@ -405,12 +803,11 @@ simulation_outputs Cardiac::runSimulation_optimized(simulation_inputs sim_inputs
     return sim_output;
 }
 
-void Cardiac::endSimulation() {
+void Cardiac::endSimulation_naive() {
     cudaFree(sim_v1);
-    cudaFree(DT);
+    cudaFree(dt_delta);
     cudaFree(sim_v2);
     cudaFree(sim_h);
-    cudaFree(J_stim_voxel);
     cudaFree(part1);
     cudaFree(part2);
     cudaFree(part3);
@@ -519,68 +916,4 @@ void Cardiac::copySimOutput(int N, glm::vec3* output_vec3) {
 void Cardiac::endVisulization() {
     cudaFree(dev_ap_gl);
     cudaFree(dev_pos);
-}
-
-void Cardiac::unitTest() {
-  // LOOK-1.2 Feel free to write additional tests here.
-
-  // test unstable sort
-  int *dev_intKeys;
-  int *dev_intValues;
-  int N = 10;
-
-  std::unique_ptr<int[]>intKeys{ new int[N] };
-  std::unique_ptr<int[]>intValues{ new int[N] };
-
-  intKeys[0] = 0; intValues[0] = 0;
-  intKeys[1] = 1; intValues[1] = 1;
-  intKeys[2] = 0; intValues[2] = 2;
-  intKeys[3] = 3; intValues[3] = 3;
-  intKeys[4] = 0; intValues[4] = 4;
-  intKeys[5] = 2; intValues[5] = 5;
-  intKeys[6] = 2; intValues[6] = 6;
-  intKeys[7] = 0; intValues[7] = 7;
-  intKeys[8] = 5; intValues[8] = 8;
-  intKeys[9] = 6; intValues[9] = 9;
-
-  cudaMalloc((void**)&dev_intKeys, N * sizeof(int));
-  checkCUDAErrorWithLine("cudaMalloc dev_intKeys failed!");
-
-  cudaMalloc((void**)&dev_intValues, N * sizeof(int));
-  checkCUDAErrorWithLine("cudaMalloc dev_intValues failed!");
-
-  dim3 fullBlocksPerGrid((N + blockSize - 1) / blockSize);
-
-  std::cout << "before unstable sort: " << std::endl;
-  for (int i = 0; i < N; i++) {
-    std::cout << "  key: " << intKeys[i];
-    std::cout << " value: " << intValues[i] << std::endl;
-  }
-
-  // How to copy data to the GPU
-  cudaMemcpy(dev_intKeys, intKeys.get(), sizeof(int) * N, cudaMemcpyHostToDevice);
-  cudaMemcpy(dev_intValues, intValues.get(), sizeof(int) * N, cudaMemcpyHostToDevice);
-
-  // Wrap device vectors in thrust iterators for use with thrust.
-  thrust::device_ptr<int> dev_thrust_keys(dev_intKeys);
-  thrust::device_ptr<int> dev_thrust_values(dev_intValues);
-  // LOOK-2.1 Example for using thrust::sort_by_key
-  thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + N, dev_thrust_values);
-
-  // How to copy data back to the CPU side from the GPU
-  cudaMemcpy(intKeys.get(), dev_intKeys, sizeof(int) * N, cudaMemcpyDeviceToHost);
-  cudaMemcpy(intValues.get(), dev_intValues, sizeof(int) * N, cudaMemcpyDeviceToHost);
-  checkCUDAErrorWithLine("memcpy back failed!");
-
-  std::cout << "after unstable sort: " << std::endl;
-  for (int i = 0; i < N; i++) {
-    std::cout << "  key: " << intKeys[i];
-    std::cout << " value: " << intValues[i] << std::endl;
-  }
-
-  // cleanup
-  cudaFree(dev_intKeys);
-  cudaFree(dev_intValues);
-  checkCUDAErrorWithLine("cudaFree failed!");
-  return;
 }
