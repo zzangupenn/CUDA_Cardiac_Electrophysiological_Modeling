@@ -111,7 +111,7 @@ void runCUDA(int N, glm::vec3* output_vec3) {
     cudaGLUnmapBufferObject(cardiacVBO_potential);
 }
 
-void visualizationLoop(simulation_outputs sim_output) {
+void visualizationLoop(simulation_outputs sim_output, bool use_float) {
     double fps = 0;
     double timebase = 0;
     int frame = 0;
@@ -131,7 +131,13 @@ void visualizationLoop(simulation_outputs sim_output) {
             frame = 0;
         }
         for (int ind = 0; ind < sim_output.n_voxel; ind++) {
-            output_vec3[ind] = dataToRGB((double)sim_output.action_potentials_f[sim_frame][ind], sim_output.data_min, sim_output.data_max);
+            if (use_float) {
+                output_vec3[ind] = dataToRGB((double)sim_output.action_potentials_f[sim_frame][ind], sim_output.data_min, sim_output.data_max);
+            }
+            else {
+                output_vec3[ind] = dataToRGB((double)sim_output.action_potentials[sim_frame][ind], sim_output.data_min, sim_output.data_max);
+            }
+            
         }
         runCUDA(sim_output.n_voxel, output_vec3);
 

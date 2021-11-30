@@ -14,6 +14,7 @@ simulation_inputs import_para(string setting_path, string input_path) {
     ret.final_t = json_in["final_t"].asInt();
     ret.visualization = json_in["visualization"].asInt();
     ret.use_gpu = json_in["use_gpu"].asInt();
+    ret.use_float = json_in["use_float"].asInt();
     ret.num_of_dt_per_save = json_in["num_of_dt_per_save"].asInt();
     ret.visualization_resolution = new int[2];
     ret.visualization_resolution[0] = json_in["visualization_resolution"][0].asInt();

@@ -18,7 +18,7 @@
 #include "data_handler.h"
 
 
-void visualizationLoop(simulation_outputs sim_inputs);
+void visualizationLoop(simulation_outputs sim_outputs, bool use_float);
 bool initGLFW(simulation_inputs sim_inputs);
 bool initCUDA();
 void updateCamera();

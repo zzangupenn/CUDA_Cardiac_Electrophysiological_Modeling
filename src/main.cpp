@@ -68,15 +68,19 @@ int main(int argc, char* argv[]) {
         //sim_output = Cardiac::runSimulation_naive(sim_inputs);
         //Cardiac::endSimulation_naive();
 
-        //simulation_data_parts data_parts = prepare_parts(sim_inputs);
-        //Cardiac::initSimulation(sim_inputs, data_parts);
-        //sim_output = Cardiac::runSimulation(sim_inputs);
-        //Cardiac::endSimulation();
-
-        simulation_data_parts data_parts = prepare_parts_float(sim_inputs);
-        Cardiac::initSimulation_float(sim_inputs, data_parts);
-        sim_output = Cardiac::runSimulation_float(sim_inputs);
-        Cardiac::endSimulation_float();
+        if (sim_inputs.use_float == 1) {
+            simulation_data_parts data_parts = prepare_parts_float(sim_inputs);
+            Cardiac::initSimulation_float(sim_inputs, data_parts);
+            sim_output = Cardiac::runSimulation_float(sim_inputs);
+            Cardiac::endSimulation_float();
+        }
+        else {
+            simulation_data_parts data_parts = prepare_parts(sim_inputs);
+            Cardiac::initSimulation(sim_inputs, data_parts);
+            sim_output = Cardiac::runSimulation(sim_inputs);
+            Cardiac::endSimulation();
+        }
+        
     }
     auto duration = chrono::duration_cast<chrono::milliseconds>(chrono::high_resolution_clock::now() - start);
     cout << "Computation took " << duration.count() << " ms." << endl;
@@ -89,7 +93,7 @@ int main(int argc, char* argv[]) {
 
     if (sim_inputs.visualization == 1) {
         std::cout << "Running Visualization." << std::endl;
-        visualizationLoop(sim_output);
+        visualizationLoop(sim_output, sim_inputs.use_float == 1);
         Cardiac::endVisulization();
     }
     return 0;

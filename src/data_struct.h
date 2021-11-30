@@ -20,6 +20,7 @@ struct simulation_inputs {
     int final_t;
     int save_result;
     int use_gpu;
+    int use_float;
     string save_result_filename;
     int visualization;
     int* visualization_resolution;

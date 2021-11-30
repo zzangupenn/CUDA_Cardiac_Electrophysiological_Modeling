@@ -142,15 +142,16 @@ __global__ void simulation_kernel_float(int step, float* sim_v1, float* dt_delta
 
         float sim_v1_index = sim_v1[index];
         float diffusion_term = 1.0 / (4.0 * dt_delta[1]) *
-            ((sim_v1[indices[threadIdx.x + blockDim.x * 0]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 0] + (sim_v1[indices[threadIdx.x + blockDim.x * 1]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 1] +
-                (sim_v1[indices[threadIdx.x + blockDim.x * 2]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 2] + (sim_v1[indices[threadIdx.x + blockDim.x * 3]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 3] +
-                (sim_v1[indices[threadIdx.x + blockDim.x * 4]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 4] + (sim_v1[indices[threadIdx.x + blockDim.x * 5]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 5] +
-                (sim_v1[indices[threadIdx.x + blockDim.x * 0]] - sim_v1[indices[threadIdx.x + blockDim.x * 1]]) * coefficients[threadIdx.x + blockDim.x * 6] +
-                (sim_v1[indices[threadIdx.x + blockDim.x * 2]] - sim_v1[indices[threadIdx.x + blockDim.x * 3]]) * coefficients[threadIdx.x + blockDim.x * 7] +
-                (sim_v1[indices[threadIdx.x + blockDim.x * 4]] - sim_v1[indices[threadIdx.x + blockDim.x * 5]]) * coefficients[threadIdx.x + blockDim.x * 8] +
-                (sim_v1[indices[threadIdx.x + blockDim.x * 6]] - sim_v1[indices[threadIdx.x + blockDim.x * 8]]) * coefficients[threadIdx.x + blockDim.x * 9] + (sim_v1[indices[threadIdx.x + blockDim.x * 9]] - sim_v1[indices[threadIdx.x + blockDim.x * 7]]) * coefficients[threadIdx.x + blockDim.x * 10] +
-                (sim_v1[indices[threadIdx.x + blockDim.x * 14]] - sim_v1[indices[threadIdx.x + blockDim.x * 16]]) * coefficients[threadIdx.x + blockDim.x * 10] + (sim_v1[indices[threadIdx.x + blockDim.x * 17]] - sim_v1[indices[threadIdx.x + blockDim.x * 15]]) * coefficients[threadIdx.x + blockDim.x * 12] +
-                (sim_v1[indices[threadIdx.x + blockDim.x * 10]] - sim_v1[indices[threadIdx.x + blockDim.x * 12]]) * coefficients[threadIdx.x + blockDim.x * 13] + (sim_v1[indices[threadIdx.x + blockDim.x * 13]] - sim_v1[indices[threadIdx.x + blockDim.x * 11]]) * coefficients[threadIdx.x + blockDim.x * 14]);
+        ((sim_v1[indices[threadIdx.x + blockDim.x * 0]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 0] + (sim_v1[indices[threadIdx.x + blockDim.x * 1]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 1] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 2]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 2] + (sim_v1[indices[threadIdx.x + blockDim.x * 3]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 3] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 4]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 4] + (sim_v1[indices[threadIdx.x + blockDim.x * 5]] - sim_v1_index) * coefficients[threadIdx.x + blockDim.x * 5] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 0]] - sim_v1[indices[threadIdx.x + blockDim.x * 1]]) * coefficients[threadIdx.x + blockDim.x * 6] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 2]] - sim_v1[indices[threadIdx.x + blockDim.x * 3]]) * coefficients[threadIdx.x + blockDim.x * 7] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 4]] - sim_v1[indices[threadIdx.x + blockDim.x * 5]]) * coefficients[threadIdx.x + blockDim.x * 8] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 6]] - sim_v1[indices[threadIdx.x + blockDim.x * 8]]) * coefficients[threadIdx.x + blockDim.x * 9] + (sim_v1[indices[threadIdx.x + blockDim.x * 9]] - sim_v1[indices[threadIdx.x + blockDim.x * 7]]) * coefficients[threadIdx.x + blockDim.x * 10] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 14]] - sim_v1[indices[threadIdx.x + blockDim.x * 16]]) * coefficients[threadIdx.x + blockDim.x * 10] + (sim_v1[indices[threadIdx.x + blockDim.x * 17]] - sim_v1[indices[threadIdx.x + blockDim.x * 15]]) * coefficients[threadIdx.x + blockDim.x * 12] +
+            (sim_v1[indices[threadIdx.x + blockDim.x * 10]] - sim_v1[indices[threadIdx.x + blockDim.x * 12]]) * coefficients[threadIdx.x + blockDim.x * 13] + (sim_v1[indices[threadIdx.x + blockDim.x * 13]] - sim_v1[indices[threadIdx.x + blockDim.x * 11]]) * coefficients[threadIdx.x + blockDim.x * 14]);
+
 
     //    float diffusion_term = 1.0 / (4.0 * dt_delta[1]) *
     //((sim_v1[indices[threadIdx.x + blockSize * 0]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 0] + (sim_v1[indices[threadIdx.x + blockSize * 1]] - sim_v1_index) * coefficients[threadIdx.x + blockSize * 1] +
@@ -220,7 +221,7 @@ simulation_outputs Cardiac::runSimulation_float(simulation_inputs sim_inputs) {
         if (ind % 1000 == 0) {
             printf("%d\n", ind);
         }
-
+        cudaDeviceSynchronize();
         simulation_kernel_float << < fullBlocksPerGrid, blockSize >> > (ind, sim_v1_f,
             dt_delta_f,
             sim_v2_f,
