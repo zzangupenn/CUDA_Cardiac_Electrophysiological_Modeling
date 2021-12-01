@@ -1,12 +1,14 @@
 {   
     "dt": 0.01,
     "final_t": 400,
+    "use_gpu": 1,
+    "use_float": 0,
+    "num_of_dt_per_save": 100,
 
-    "save_result": 1,
+    "save_result": 0,
     "save_result_filename": "sim_result",
+    "save_data_min_clip": 0.00001,
     
-    "visualization": 1,
-    "visualization_resolution": [1280, 720],
-    "save_visulization": 0,
-    "save_visulization_filename": "voxel_vis.avi"
+    "visualization": 0,
+    "visualization_resolution": [1280, 720]
 }
