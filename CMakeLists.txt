@@ -37,11 +37,20 @@ endif(WIN32)
 
 find_package(OpenGL REQUIRED)
 
-if(UNIX)
-    find_package(glfw3 REQUIRED)
+if(EXISTS /etc/nv_tegra_release) # for compiling on Jetson
+    find_package(glfw REQUIRED)
     find_package(GLEW REQUIRED)
     set(LIBRARIES glfw ${GLEW_LIBRARIES} ${OPENGL_gl_LIBRARY})
-else(UNIX)
+endif(EXISTS /etc/nv_tegra_release)
+
+
+
+if(UNIX AND NOT EXISTS /etc/nv_tegra_release)
+    find_package(glfw3 REQUIRED)
+    # find_package(glfw REQUIRED)
+    find_package(GLEW REQUIRED)
+    set(LIBRARIES glfw ${GLEW_LIBRARIES} ${OPENGL_gl_LIBRARY})
+else(UNIX AND NOT EXISTS /etc/nv_tegra_release)
     set(EXTERNAL "external")
 
     set(GLFW_ROOT_DIR ${EXTERNAL})
@@ -55,7 +64,7 @@ else(UNIX)
     add_definitions(${GLEW_DEFINITIONS})
     include_directories(${GLEW_INCLUDE_DIR} ${GLFW_INCLUDE_DIR})
     set(LIBRARIES ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARY})
-endif(UNIX)
+endif(UNIX AND NOT EXISTS /etc/nv_tegra_release)
 
 set(GLM_ROOT_DIR "external")
 find_package(GLM REQUIRED)

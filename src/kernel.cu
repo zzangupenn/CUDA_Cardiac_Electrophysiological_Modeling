@@ -401,7 +401,6 @@ __global__ void simulation_kernel(int step, double* sim_v1, double* dt_delta,
 simulation_outputs Cardiac::runSimulation(simulation_inputs sim_inputs) {
     dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
     double* J_stim = new double[numObjects];
-    int temp_ptr;
 
     simulation_outputs sim_output;
     int total_step = sim_inputs.final_t / sim_inputs.dt;
@@ -725,7 +724,6 @@ __global__ void simulation_kernel_naive(int step, double* sim_v1, double* dt_del
 simulation_outputs Cardiac::runSimulation_naive(simulation_inputs sim_inputs) {
     dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
     double* J_stim = new double[numObjects];
-    int temp_ptr;
 
     simulation_outputs sim_output;
     int total_step = sim_inputs.final_t / sim_inputs.dt;
