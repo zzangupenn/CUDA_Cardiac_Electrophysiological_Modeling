@@ -10,7 +10,7 @@ Final Project**
 
 ## Physics-based Grass Simulation in Vulkan
 <p align="center">
-<img src="img/two_point.gif"
+<img src="image/two_point.gif"
      alt="two_point"
      width="600"/>
 </p>
