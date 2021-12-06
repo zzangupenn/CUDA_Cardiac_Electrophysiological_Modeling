@@ -12,7 +12,7 @@ Final Project**
 <p align="center">
 <img src="images/two_point.gif"
      alt="two_point"
-     width="600"/>
+     width="700"/>
 </p>
 
 https://elinux.org/Jetson/Installing_ArrayFire#GLFW
