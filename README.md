@@ -1,4 +1,4 @@
-﻿# CUDA_Cardiac_Electrophysiological_Modeling
+﻿# CUDA Cardiac Electrophysiological Modeling
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture,
 Final Project**
