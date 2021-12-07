@@ -8,7 +8,7 @@ Final Project**
 * Tested on: Windows 10, AMD Ryzen 7 3700X @ 3.60GHz 32GB, RTX2070 SUPER 8GB (Personal)
 * This project is closed source until publication.
 
-## Cardiac Electrophysiological Simulation with Mitchell-Schaeffer Model
+## Mitchell-Schaeffer Model Simulation
 <p align="center">
 <img src="images/two_point.gif"
      alt="two_point"
