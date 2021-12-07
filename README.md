@@ -29,8 +29,10 @@ docker run cardiac --gpus 0 ./cuda_cardiac
 You change the `sim_inputs.json` or `sim_settings.json` file in the data folder. Please run the build command again to copy the files into the image.
 
 ## On NVIDIA Jetson
-This repo is tested on Jetson Xaiver NX with Jetpack 4.6
+This repo is tested on Jetson Xaiver NX with Jetpack 4.6.
+
 Please follow this [link](https://elinux.org/Jetson/Installing_ArrayFire#GLFW) to install the GLFW on Jetson.
+
 Then run the following in the repo folder:
 ```
 mkdir build
