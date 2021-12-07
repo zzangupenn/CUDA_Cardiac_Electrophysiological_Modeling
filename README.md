@@ -19,7 +19,7 @@ Final Project**
 ### On Windows or Linux
 On Windows you can also use Visual Studio to compile the code. If you want to do so, you can refer to [Setup](https://cis565-fall-2021.github.io/setup-windows/) and [Compile](https://github.com/CIS565-Fall-2021/Project0-Getting-Started/blob/main/INSTRUCTION.md).
 Or you can use the dockerfile for compiling the code. Please first install docker and nvidia-docker2.
-Then build the docker image called cardiac. This will compile the code inside the docker image.
+Then build the docker image by run the following line, which will compile the code inside the docker image.
 ```
 docker build . -t cardiac
 ```
