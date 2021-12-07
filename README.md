@@ -5,7 +5,7 @@ Final Project**
 
 * Zirui Zang
   * [LinkedIn](https://www.linkedin.com/in/zirui-zang/)
-* Tested on: Windows 10, AMD Ryzen 7 3700X @ 3.60GHz 32GB, RTX2070 SUPER 8GB (Personal)
+* Tested on: Windows 10 and Ubuntu 20.04, AMD Ryzen 7 3700X @ 3.60GHz 32GB, RTX2070 SUPER 8GB (Personal)
 * This project is closed source until publication.
 
 ## Mitchell-Schaeffer Model Simulation
@@ -16,3 +16,12 @@ Final Project**
 </p>
 
 https://elinux.org/Jetson/Installing_ArrayFire#GLFW
+
+## On Windows or Linux
+Please use the dockerfile for compiling the code. Install docker and nvidia-docker2.
+Then build the docker:
+***
+here
+***
+
+##
