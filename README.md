@@ -17,7 +17,8 @@ Final Project**
 
 ## Running the Code
 ### On Windows or Linux
-Please use the dockerfile for compiling the code. Install docker and nvidia-docker2.
+On Windows you can also use Visual Studio to compile the code. If you want to do so, you can refer to [Setup](https://cis565-fall-2021.github.io/setup-windows/) and [Compile](https://github.com/CIS565-Fall-2021/Project0-Getting-Started/blob/main/INSTRUCTION.md).
+Or you can use the dockerfile for compiling the code. Please first install docker and nvidia-docker2.
 Then build the docker image called cardiac. This will compile the code inside the docker image.
 ```
 docker build . -t cardiac
@@ -26,7 +27,7 @@ Run the simulation:
 ```
 docker run cardiac --gpus 0 ./cuda_cardiac 
 ```
-You change the `sim_inputs.json` or `sim_settings.json` file in the data folder. Please run the build command again to copy the files into the image.
+If you changed the `sim_inputs.json` or `sim_settings.json` file in the data folder. Please run the build command again to copy the files into the image.
 
 ### On NVIDIA Jetson
 This repo is tested on Jetson Xaiver NX with Jetpack 4.6. Please follow this [link](https://elinux.org/Jetson/Installing_ArrayFire#GLFW) to install the GLFW on Jetson.
