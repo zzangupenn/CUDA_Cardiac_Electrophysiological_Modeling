@@ -39,5 +39,6 @@ cmake ..
 make -j4
 cp ../shaders /bin/shaders
 cp ../data /bin/data
+cd bin
 ./cuda_cardiac
 ```
