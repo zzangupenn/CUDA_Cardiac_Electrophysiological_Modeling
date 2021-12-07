@@ -42,3 +42,4 @@ cp ../data /bin/data
 cd bin
 ./cuda_cardiac
 ```
+On Jetson Xaiver NX, this code is tested to run the fast with 20W4Core option.
