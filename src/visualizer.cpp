@@ -150,7 +150,7 @@ void visualizationLoop(simulation_outputs sim_output, bool use_float) {
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-#if VISUALIZE
+// #if VISUALIZE
         glUseProgram(program[PROG_CARDIAC]);
         glBindVertexArray(cardiacVAO);
         glPointSize((GLfloat)pointSize);
@@ -164,7 +164,7 @@ void visualizationLoop(simulation_outputs sim_output, bool use_float) {
         if (sim_frame >= sim_output.n_step - 1) {
             break;
         }
-#endif
+// #endif
     }
     glfwDestroyWindow(window);
     glfwTerminate();

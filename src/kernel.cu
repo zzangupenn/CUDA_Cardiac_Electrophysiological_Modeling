@@ -209,11 +209,11 @@ simulation_outputs Cardiac::runSimulation_float(simulation_inputs sim_inputs) {
 
     simulation_outputs sim_output;
     int total_step = sim_inputs.final_t / sim_inputs.dt;
-    sim_output.n_step = total_step;
     sim_output.n_voxel = sim_inputs.n_voxel;
     sim_output.data_min = sim_inputs.v_gate[0];
     sim_output.data_max = 1.0;
     int total_save = total_step / sim_inputs.num_of_dt_per_save;
+    sim_output.n_step = total_save;
     sim_output.action_potentials_f = new float* [total_save];
     int save_ind = 0;
 
@@ -404,11 +404,11 @@ simulation_outputs Cardiac::runSimulation(simulation_inputs sim_inputs) {
 
     simulation_outputs sim_output;
     int total_step = sim_inputs.final_t / sim_inputs.dt;
-    sim_output.n_step = total_step;
     sim_output.n_voxel = sim_inputs.n_voxel;
     sim_output.data_min = sim_inputs.v_gate[0];
     sim_output.data_max = 1.0;
     int total_save = total_step / sim_inputs.num_of_dt_per_save;
+    sim_output.n_step = total_save;
     sim_output.action_potentials = new double* [total_save];
     int save_ind = 0;
 
@@ -437,7 +437,7 @@ simulation_outputs Cardiac::runSimulation(simulation_inputs sim_inputs) {
             cudaMemcpy(sim_output.action_potentials[save_ind], sim_v1, numObjects * sizeof(double), cudaMemcpyDeviceToHost);
             save_ind++;
         }
-              
+        // printf("%f\n", sim_output.action_potentials[save_ind][0]);      
         
     }
     return sim_output;
@@ -727,11 +727,11 @@ simulation_outputs Cardiac::runSimulation_naive(simulation_inputs sim_inputs) {
 
     simulation_outputs sim_output;
     int total_step = sim_inputs.final_t / sim_inputs.dt;
-    sim_output.n_step = total_step;
     sim_output.n_voxel = sim_inputs.n_voxel;
     sim_output.data_min = sim_inputs.v_gate[0];
     sim_output.data_max = 1.0;
     int total_save = total_step / sim_inputs.num_of_dt_per_save;
+    sim_output.n_step = total_save;
     sim_output.action_potentials = new double* [total_save];
     int save_ind = 0;
 

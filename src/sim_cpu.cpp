@@ -418,11 +418,11 @@ simulation_outputs Simulation_CPU(simulation_inputs sim_inputs) {
         if (J_stim_max_ind < sim_inputs.J_stim.step[ind]) J_stim_max_ind = sim_inputs.J_stim.step[ind];
     }
     simulation_outputs sim_output;
-    sim_output.n_step = total_step;
     sim_output.n_voxel = sim_inputs.n_voxel;
     sim_output.data_min = v_gate(0);
     sim_output.data_max = 1.0;
     int total_save = total_step / sim_inputs.num_of_dt_per_save;
+    sim_output.n_step = total_save;
     sim_output.action_potentials = new double* [total_save];
     for (int ind = 0; ind < total_save; ind++) {
         sim_output.action_potentials[ind] = new double[sim_inputs.n_voxel];

@@ -122,13 +122,24 @@ int save_data(simulation_inputs sim_input, simulation_outputs sim_output, double
         //    fd.open(sim_input.save_result_filename + to_string(count) + ".json");
         //    fd << "{\"action_potentials\":";
         //}
+        // cout << sim_output.action_potentials[0][0] << endl;
         fd << "[";
         for (int ind2 = 0; ind2 < sim_output.n_voxel; ind2++) {
-            if (sim_output.action_potentials[ind][ind2] < save_data_min_clip) {
-                fd << "0";
-            }
+            if (sim_input.use_float == 1){
+                if (sim_output.action_potentials_f[ind][ind2] < save_data_min_clip) {
+                    fd << "0";
+                }
+                else {
+                    fd << to_string(sim_output.action_potentials_f[ind][ind2]);
+                }
+            } 
             else {
-                fd << to_string(sim_output.action_potentials[ind][ind2]);
+                if (sim_output.action_potentials[ind][ind2] < save_data_min_clip) {
+                    fd << "0";
+                }
+                else {
+                    fd << to_string(sim_output.action_potentials[ind][ind2]);
+                }
             }
             if (ind2 != sim_output.n_voxel - 1) {
                 fd << ",";

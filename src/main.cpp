@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
         initGLFW(sim_inputs);
     }
     
-
+    
     if (sim_inputs.use_gpu != 1) {
         sim_output = Simulation_CPU(sim_inputs);
     }
@@ -84,7 +84,6 @@ int main(int argc, char* argv[]) {
     }
     auto duration = chrono::duration_cast<chrono::milliseconds>(chrono::high_resolution_clock::now() - start);
     cout << "Computation took " << duration.count() << " ms." << endl;
-    
 
     if (sim_inputs.save_result == 1) {
         print_str("Saving results.");
