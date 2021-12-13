@@ -113,7 +113,7 @@ int save_data(simulation_inputs sim_input, simulation_outputs sim_output, double
 
     //fd << "{\"action_potentials\":";
     //int count = 0;
-    for (int ind = 0; ind < sim_output.n_step; ind += int(1 / sim_input.dt)) {
+    for (int ind = 0; ind < sim_output.n_step; ind += 1) {
     //for (int ind = 0; ind < 2; ind += 1) {
         //if (ind % 1000 == 0 && ind != 0) {
         //    fd << "]}";
