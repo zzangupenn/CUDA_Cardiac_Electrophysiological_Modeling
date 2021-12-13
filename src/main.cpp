@@ -92,7 +92,7 @@ int main(int argc, char* argv[]) {
 
     if (sim_inputs.visualization == 1) {
         std::cout << "Running Visualization." << std::endl;
-        visualizationLoop(sim_output, sim_inputs.use_float == 1);
+        visualizationLoop(sim_output, sim_inputs);
         Cardiac::endVisulization();
     }
     return 0;

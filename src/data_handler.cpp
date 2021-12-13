@@ -13,6 +13,7 @@ simulation_inputs import_para(string setting_path, string input_path) {
     ret.dt_f = (float)ret.dt;
     ret.final_t = json_in["final_t"].asInt();
     ret.visualization = json_in["visualization"].asInt();
+    ret.visualization_loop = json_in["visualization_loop"].asInt();
     ret.use_gpu = json_in["use_gpu"].asInt();
     ret.use_float = json_in["use_float"].asInt();
     ret.num_of_dt_per_save = json_in["num_of_dt_per_save"].asInt();
@@ -23,6 +24,7 @@ simulation_inputs import_para(string setting_path, string input_path) {
     ret.save_result = json_in["save_result"].asInt();
     ret.save_result_filename = json_in["save_result_filename"].asString();
     ret.save_data_min_clip = json_in["save_data_min_clip"].asDouble();
+    
 
     file.close();
     file.clear();

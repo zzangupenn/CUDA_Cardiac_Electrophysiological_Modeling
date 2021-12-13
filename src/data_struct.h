@@ -23,6 +23,7 @@ struct simulation_inputs {
     int use_float;
     string save_result_filename;
     int visualization;
+    int visualization_loop;
     int* visualization_resolution;
     int save_visulization;
     string save_visulization_filename;
