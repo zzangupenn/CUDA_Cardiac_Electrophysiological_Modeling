@@ -14,6 +14,14 @@ Final Project**
      alt="two_point"
      width="700"/>
 </p>
+For details about the model, please view this [paper](https://dl.acm.org/doi/abs/10.1145/3450267.3450532)
+
+## Performance
+<p align="center">
+<img src="images/speed.png"
+     alt="speed"
+     width="700"/>
+</p>
 
 ## Running the Code
 ### On Windows or Linux
