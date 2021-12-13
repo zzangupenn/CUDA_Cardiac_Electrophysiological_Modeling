@@ -1,4 +1,4 @@
-fname = 'sim_result0.json'; 
+fname = 'sim_result.json'; 
 fid = fopen(fname); 
 raw = fread(fid,inf); 
 str = char(raw'); 

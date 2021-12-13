@@ -147,7 +147,7 @@ int save_data(simulation_inputs sim_input, simulation_outputs sim_output, double
                 fd << ",";
             }
         }
-        if (ind != sim_output.n_step - int(1 / sim_input.dt)) {
+        if (ind != sim_output.n_step - 1) {
             fd << "],";
         }
         else {
