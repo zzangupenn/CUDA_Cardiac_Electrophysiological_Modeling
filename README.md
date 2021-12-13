@@ -17,7 +17,9 @@ Final Project**
 For details about the model, please view this [paper](https://dl.acm.org/doi/abs/10.1145/3450267.3450532/).
 
 ## Performance
-Here is a performace comparison to the Matlab implementation or CPU implementation. The test is done with the sample input inside the data folder.
+Here is a performace comparison to the Matlab implementation or CPU implementation. 
+
+The test is done with the sample input inside the data folder.
 <p align="center">
 <img src="images/speed.png"
      alt="speed"
@@ -25,6 +27,13 @@ Here is a performace comparison to the Matlab implementation or CPU implementati
 </p>
 
 ## Running the Code
+### Simulation Inputs
+`data/sim_inputs.json` holds the needed parameters for the simlation. 
+
+The attached Matlab code can be used to generate it.
+
+`data/sim_settings.json` holds the parameters for the simulation.
+
 ### On Windows or Linux
 On Windows you can also use Visual Studio to compile the code. If you want to do so, you can refer to [Setup](https://cis565-fall-2021.github.io/setup-windows/) and [Compile](https://github.com/CIS565-Fall-2021/Project0-Getting-Started/blob/main/INSTRUCTION.md).
 
