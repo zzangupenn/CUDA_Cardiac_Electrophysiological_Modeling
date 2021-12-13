@@ -15,7 +15,7 @@ Final Project**
      width="700"/>
 </p>
 
-For details about the model, please view this [paper](https://dl.acm.org/doi/abs/10.1145/3450267.3450532/).
+For details about the Mitchell-Schaeffer model, please view this [paper](https://dl.acm.org/doi/abs/10.1145/3450267.3450532/).
 
 ## Performance
 Here is a performace comparison to the Matlab implementation or CPU implementation. 
