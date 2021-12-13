@@ -7,8 +7,9 @@ Final Project**
   * [LinkedIn](https://www.linkedin.com/in/zirui-zang/)
 * Tested on: Windows 10 and Ubuntu 20.04, AMD Ryzen 7 3700X @ 3.60GHz 32GB, RTX2070 SUPER 8GB (Personal)
 * This project is closed source until publication.
-[this](https://dl.acm.org/doi/abs/10.1145/3450267.3450532/)
+
 ## Mitchell-Schaeffer Model Simulation
+[this](https://dl.acm.org/doi/abs/10.1145/3450267.3450532/)
 <p align="center">
 <img src="images/two_point.gif"
      alt="two_point"
