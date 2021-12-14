@@ -63,12 +63,13 @@ int main(int argc, char* argv[]) {
         sim_output = Simulation_CPU(sim_inputs);
     }
     else {
-        //simulation_data_parts data_parts = prepare_parts_naive(sim_inputs);
-        //Cardiac::initSimulation_naive(sim_inputs, data_parts);
-        //sim_output = Cardiac::runSimulation_naive(sim_inputs);
-        //Cardiac::endSimulation_naive();
-
         if (sim_inputs.use_float == 1) {
+            simulation_data_parts data_parts = prepare_parts_naive(sim_inputs);
+            Cardiac::initSimulation_naive(sim_inputs, data_parts);
+            sim_output = Cardiac::runSimulation_naive(sim_inputs);
+            Cardiac::endSimulation_naive();
+        }
+        else if (sim_inputs.use_float == 1) {
             simulation_data_parts data_parts = prepare_parts_float(sim_inputs);
             Cardiac::initSimulation_float(sim_inputs, data_parts);
             sim_output = Cardiac::runSimulation_float(sim_inputs);

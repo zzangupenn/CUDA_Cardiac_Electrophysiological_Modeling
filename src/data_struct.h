@@ -21,6 +21,7 @@ struct simulation_inputs {
     int save_result;
     int use_gpu;
     int use_float;
+    int use_naive;
     string save_result_filename;
     int visualization;
     int visualization_loop;
