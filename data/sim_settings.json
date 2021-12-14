@@ -1,15 +1,16 @@
 {   
     "dt": 0.01,
     "final_t": 400,
+    "num_of_dt_per_save": 40,
     "use_gpu": 1,
-    "use_float": 1,
-    "num_of_dt_per_save": 50,
+    "use_float": 0,
+    "use_naive": 1,
 
-    "save_result": 0,
+    "save_result": 1,
     "save_result_filename": "sim_result",
     "save_data_min_clip": 0.00001,
     
-    "visualization": 1,
-    "visualization_looping": 1,
+    "visualization": 0,
+    "visualization_loop": 0,
     "visualization_resolution": [1280, 720]
 }
