@@ -9,7 +9,7 @@
 
 For details about the Mitchell-Schaeffer model, please view this [paper](https://dl.acm.org/doi/abs/10.1145/3450267.3450532/).
 
-## Check out our paper
+## Check out our publication
 ```
 @article{he2022fiber,
   title={Fiber organization has little effect on electrical activation patterns during focal arrhythmias in the left atrium},
