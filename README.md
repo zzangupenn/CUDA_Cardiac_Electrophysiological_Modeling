@@ -9,16 +9,6 @@
 
 For details about the Mitchell-Schaeffer model, please view this [paper](https://dl.acm.org/doi/abs/10.1145/3450267.3450532/).
 
-## Performance
-Here is a performace comparison to the Matlab implementation or CPU implementation. 
-
-The test is done with the sample input inside the data folder.
-<p align="center">
-<img src="images/speed.png"
-     alt="speed"
-     width="700"/>
-</p>
-
 ## Check out our paper
 ```
 @article{he2022fiber,
@@ -32,6 +22,17 @@ The test is done with the sample input inside the data folder.
   publisher={IEEE}
 }
 ```
+
+## Performance
+Here is a performace comparison to the Matlab implementation or CPU implementation. 
+
+The test is done with the sample input inside the data folder.
+<p align="center">
+<img src="images/speed.png"
+     alt="speed"
+     width="700"/>
+</p>
+
 
 ## Running the code
 ### Simulation Inputs
