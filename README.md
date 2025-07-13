@@ -33,7 +33,7 @@ The test is done with the sample input inside the data folder.
 }
 ```
 
-## Running the Code
+## Running the code
 ### Simulation Inputs
 `data/sim_inputs.json` holds the needed parameters for the simlation. 
 
