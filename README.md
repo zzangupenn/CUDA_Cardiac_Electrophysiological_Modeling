@@ -19,6 +19,20 @@ The test is done with the sample input inside the data folder.
      width="700"/>
 </p>
 
+## Check out our paper
+```
+@article{he2022fiber,
+  title={Fiber organization has little effect on electrical activation patterns during focal arrhythmias in the left atrium},
+  author={He, Jiyue and Pertsov, Arkady M and Cherry, Elizabeth M and Fenton, Flavio H and Roney, Caroline H and Niederer, Steven A and Zang, Zirui and Mangharam, Rahul},
+  journal={IEEE Transactions on Biomedical Engineering},
+  volume={70},
+  number={5},
+  pages={1611--1621},
+  year={2022},
+  publisher={IEEE}
+}
+```
+
 ## Running the Code
 ### Simulation Inputs
 `data/sim_inputs.json` holds the needed parameters for the simlation. 
