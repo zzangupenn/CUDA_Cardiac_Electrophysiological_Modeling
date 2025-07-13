@@ -32,7 +32,7 @@ The test is done with the sample input inside the data folder.
      alt="speed"
      width="700"/>
 </p>
-
+* Tested on: Windows 10 and Ubuntu 20.04, AMD Ryzen 7 3700X @ 3.60GHz 32GB, RTX2070 SUPER 8GB
 
 ## Running the code
 ### Simulation Inputs
@@ -73,5 +73,4 @@ cd bin
 On Jetson Xaiver NX, this code is tested with 20W4Core option.
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Final Project**
-* Tested on: Windows 10 and Ubuntu 20.04, AMD Ryzen 7 3700X @ 3.60GHz 32GB, RTX2070 SUPER 8GB
 
